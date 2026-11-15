@@ -16,12 +16,13 @@ public sealed class Bridge : IDisposable
         NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals | JsonNumberHandling.AllowReadingFromString,
     };
 
-    public const string Version = "1.0.0";
+    public const string Version = "1.1.0";
 
     public readonly SettingsStore Settings = new();
     public readonly HardwareService Hardware;
     public readonly KeyboardService Keyboard = new();
     public readonly MouseService Mouse = new();
+    public readonly CentroDeMando.Services.Brands.BrandService Brands = new();
     public readonly AuraService Aura = new();
     public readonly GpuOcService GpuOc = new();
     public readonly ProcessService Processes = new();
@@ -73,6 +74,8 @@ public sealed class Bridge : IDisposable
             ["audio.list"] = _ => AudioService.List(),
             ["audio.setVolume"] = a => AudioService.SetVolume(a.GetProperty("id").GetString() ?? "", Num(a, "volume") is double v ? (int)v : null, a.TryGetProperty("mute", out var m) && m.ValueKind is JsonValueKind.True or JsonValueKind.False ? m.GetBoolean() : null),
             ["audio.setDefault"] = a => AudioService.SetDefault(a.GetProperty("id").GetString() ?? ""),
+            ["brand.info"] = a => Brands.Info(a),
+            ["brand.apply"] = a => Brands.Apply(a),
             ["mouse.status"] = _ => Mouse.Status(),
             ["mouse.read"] = _ => Mouse.Read(),
             ["mouse.apply"] = a => Mouse.Apply(a),

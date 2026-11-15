@@ -1141,7 +1141,7 @@ const Perif = {
   setName(driver, name) {
     if (!name || this.names[driver] === name) return;
     this.names[driver] = name;
-    const it = this.items.find(i => i.driver === driver);
+    const it = this.items.find(i => i.driver === driver || 'brand:' + i.key === driver);
     if (it) { const b = $(`.pf-dev[data-k="${it.key}"] .pf-txt b`, this.root); if (b) b.textContent = name; }
   },
   KIND: { keyboard: ['keyboard', 'Teclado'], mouse: ['mouse', 'Ratón'], headset: ['headset', 'Auriculares'], gamepad: ['gamepad', 'Mando'], audio: ['volume', 'Volumen y dispositivos'] },
@@ -1152,10 +1152,12 @@ const Perif = {
       <div id="pf-kb" hidden></div>
       <div id="pf-mouse" hidden></div>
       <div id="pf-sound" hidden></div>
+      <div id="pf-brand" hidden></div>
       <div id="pf-info" hidden></div>`;
     Kb.mount($('#pf-kb', root));
     Mouse.mount($('#pf-mouse', root));
     Sound.mount($('#pf-sound', root));
+    Brand.mount($('#pf-brand', root));
     $('#pf-strip', root).addEventListener('click', e => {
       if (e.target.closest('#pf-rescan')) return this.scan(true);
       const b = e.target.closest('[data-k]'); if (b) this.select(b.dataset.k);
@@ -1196,7 +1198,7 @@ const Perif = {
       const tag = i.driver ? '<span class="pill">Configurable</span>' : '<span class="pill off">Solo detección</span>';
       return `<button class="pf-dev${i.key === this.sel ? ' active' : ''}" data-k="${esc(i.key)}">
         <span class="pf-ico">${icon(ic)}</span>
-        <span class="pf-txt"><b>${esc(this.names[i.driver] || i.name)}</b><small>${label}${i.wireless ? ' · inalámbrico' : ''}</small>${tag}</span></button>`;
+        <span class="pf-txt"><b>${esc(this.names[i.driver === 'brand' ? 'brand:' + i.key : i.driver] || i.name)}</b><small>${label}${i.wireless ? ' · inalámbrico' : ''}</small>${tag}</span></button>`;
     }).join('');
     strip.innerHTML = (cards || '<div class="pf-none">No se ha detectado ningún teclado, ratón ni mando USB.</div>') +
       `<button class="icon-btn pf-rescan" id="pf-rescan" title="Volver a buscar periféricos">${icon('refresh')}</button>`;
@@ -1208,16 +1210,18 @@ const Perif = {
     this.sel = key;
     $$('.pf-dev', this.root).forEach(b => b.classList.toggle('active', b.dataset.k === key));
     const it = this.current();
-    const kb = !it || it.driver === 'ajazz', mouse = !!it && it.driver === 'vxe', sound = !!it && it.driver === 'audio';
+    const kb = !it || it.driver === 'ajazz', mouse = !!it && it.driver === 'vxe', sound = !!it && it.driver === 'audio', brand = !!it && it.driver === 'brand';
+    $('#pf-brand', this.root).hidden = !brand;
     $('#pf-kb', this.root).hidden = !kb;
     $('#pf-mouse', this.root).hidden = !mouse;
     $('#pf-sound', this.root).hidden = !sound;
     const info = $('#pf-info', this.root);
-    info.hidden = kb || mouse || sound;
+    info.hidden = kb || mouse || sound || brand;
     if (state.page !== 'perif') return;
     if (kb) Kb.show();
     else if (mouse) Mouse.show(it);
     else if (sound) Sound.show(it);
+    else if (brand) Brand.show(it);
     else {
       const [ic, label] = this.KIND[it.kind] || ['chip', 'Dispositivo'];
       info.innerHTML = `<div class="card"><div class="empty">${icon(ic)}<h3>${esc(it.name)}</h3>
@@ -1515,6 +1519,111 @@ const Sound = {
     const dev = this.find(id);
     const r = await attempt(() => api.call('audio.setDefault', { id }), dev ? `Ahora se usa: ${dev.name}` : 'Dispositivo cambiado');
     if (r.ok) this.load(false);
+  },
+};
+
+/* ══════════════════════ PERIFÉRICOS DE MARCA (Logitech, Razer, Redragon, SteelSeries) ══════════════════════ */
+const Brand = {
+  it: null, info: null, st: { effect: 'static', color: '#00d6aa', brightness: 100, speed: 3 },
+  FX: { static: 'Estático', breathing: 'Respiración', spectrum: 'Arcoíris', off: 'Apagado' },
+  mount(root) {
+    this.root = root;
+    root.innerHTML = `
+    <div class="card kb-status">
+      <div class="kb-st-ico" id="br-ico">${icon('keyboard')}</div>
+      <div class="kb-st-main"><h3 id="br-model">—</h3><span class="sub" id="br-sub"></span></div>
+      <div class="kb-st-right"><span class="batt" id="br-batt" hidden></span><span class="pill off" id="br-pill">Buscando</span>
+        <button class="icon-btn" id="br-refresh" title="Volver a leer">${icon('refresh')}</button></div>
+    </div>
+    <div id="br-empty"></div>
+    <div id="br-main" hidden>
+      <div class="grid">
+        <div class="card span7" id="br-light">
+          <div class="card-head">${icon('rgb')}<div><h3>Iluminación</h3><span class="sub" id="br-note"></span></div></div>
+          <div class="seg br-fx" id="br-fx"></div>
+          <div class="rgb-color" id="br-color-row"><div id="br-wheel"></div>
+            <div class="rgb-color-side"><b>Color</b><div class="swatches" id="br-sw"></div>
+              <div class="color-row"><span class="rgb-cur" id="br-cur"></span><input class="field hex" id="br-hex" maxlength="7" spellcheck="false"></div></div></div>
+          <div id="br-sliders"></div>
+          <div class="card-foot"><button class="btn primary" id="br-apply">${icon('check')}Aplicar iluminación</button></div>
+        </div>
+        <div class="card span5" id="br-dpi-card" hidden>
+          <div class="card-head">${icon('mouse')}<div><h3>DPI</h3><span class="sub">Sensibilidad del ratón</span></div></div>
+          <div id="br-dpi"></div>
+          <div class="card-foot"><button class="btn primary" id="br-dpi-apply">${icon('check')}Aplicar DPI</button></div>
+        </div>
+      </div>
+    </div>`;
+    const st = this.st;
+    this.wheel = colorWheel(c => { st.color = c; this.sync(); });
+    $('#br-wheel', root).append(this.wheel.el);
+    $('#br-sw', root).innerHTML = Rgb.SW.map(c => `<button class="swatch" data-c="${c}" style="background:${c}"></button>`).join('');
+    $('#br-sw', root).addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) { st.color = b.dataset.c; this.sync(); } });
+    $('#br-hex', root).addEventListener('change', e => { let v = e.target.value.trim(); if (v && v[0] !== '#') v = '#' + v; if (validHex(v)) st.color = v.toLowerCase(); this.sync(); });
+    this.bri = sliderRow({ title: 'Brillo', min: 0, max: 100, step: 5, unit: '%', value: st.brightness });
+    this.spd = sliderRow({ title: 'Velocidad', desc: 'De los efectos animados', min: 1, max: 5, step: 1, value: st.speed });
+    $('#br-sliders', root).append(this.bri.el, this.spd.el);
+    this.bri.onInput(v => { st.brightness = v; });
+    this.spd.onInput(v => { st.speed = v; });
+    this.dpi = sliderRow({ title: 'DPI', min: 100, max: 16000, step: 50, unit: 'DPI', value: 800 });
+    this.dpi.el.style.gridTemplateColumns = '46px minmax(0,1fr) auto';
+    $('#br-dpi', root).append(this.dpi.el);
+    $('#br-fx', root).addEventListener('click', e => { const b = e.target.closest('[data-fx]'); if (b) { st.effect = b.dataset.fx; this.sync(); } });
+    $('#br-refresh', root).addEventListener('click', () => this.load(true));
+    $('#br-apply', root).addEventListener('click', () => this.apply({ effect: st.effect, color: st.color, brightness: st.brightness, speed: st.speed }, 'Iluminación aplicada'));
+    $('#br-dpi-apply', root).addEventListener('click', () => this.apply({ dpi: this.dpi.get() }, 'DPI aplicados'));
+  },
+  show(it) { if (!this.it || this.it.key !== it.key) { this.info = null; } this.it = it; this.load(false); },
+  hide() { },
+  args(extra) { return { key: this.it.key, kind: this.it.kind, name: this.it.name, ...extra }; },
+  async load(manual) {
+    const it = this.it, root = this.root;
+    setText('#br-model', it.name, root);
+    $('#br-ico', root).innerHTML = icon(it.kind === 'mouse' ? 'mouse' : 'keyboard');
+    if (!this.info) { $('#br-main', root).hidden = true; $('#br-empty', root).innerHTML = '<div class="card"><div class="skeleton" style="height:200px"></div></div>'; }
+    let r;
+    try { r = { ok: true, result: await api.call('brand.info', this.args()) }; } catch (e) { r = { ok: false, error: e }; }
+    if (this.it !== it) return;
+    const pill = $('#br-pill', root);
+    if (!r.ok) {
+      pill.className = 'pill warn'; pill.textContent = 'Sin respuesta';
+      $('#br-main', root).hidden = true;
+      $('#br-empty', root).innerHTML = `<div class="card"><div class="empty">${icon('warn')}<h3>No se puede controlar este periférico</h3><p>${esc((r.error && r.error.message) || '')}</p>
+        <button class="btn" id="br-retry">${icon('refresh')}Reintentar</button></div></div>`;
+      $('#br-retry', root).addEventListener('click', () => this.load(true));
+      return;
+    }
+    const d = this.info = r.result;
+    if (d.model) { setText('#br-model', d.model, root); Perif.setName('brand:' + it.key, d.model); }
+    setText('#br-sub', [d.brand, it.wireless ? 'inalámbrico' : ''].filter(Boolean).join(' · '), root);
+    pill.className = 'pill'; pill.textContent = 'En línea';
+    const batt = $('#br-batt', root); batt.hidden = !isNum(d.battery);
+    if (isNum(d.battery)) batt.innerHTML = `${icon('battery')}${fmt(d.battery)} %`;
+    $('#br-empty', root).innerHTML = ''; $('#br-main', root).hidden = false;
+    const hasLight = d.effects && d.effects.length;
+    $('#br-light', root).hidden = !hasLight;
+    setText('#br-note', d.note || '', root);
+    $('#br-fx', root).innerHTML = (d.effects || []).map(f => `<button data-fx="${f}">${this.FX[f] || f}</button>`).join('');
+    if (hasLight && !d.effects.includes(this.st.effect)) this.st.effect = d.effects[0];
+    this.bri.el.hidden = !d.hasBrightness; this.spd.el.hidden = !d.hasSpeed;
+    $('#br-dpi-card', root).hidden = !d.hasDpi;
+    if (d.hasDpi) { this.dpi.setLimits(d.dpiMin || 100, d.dpiMax || 16000, d.dpiStep || 50); if (isNum(d.dpi)) this.dpi.set(d.dpi, true); }
+    if (!hasLight && !d.hasDpi) $('#br-empty', root).innerHTML = `<div class="card"><div class="empty">${icon('info')}<h3>Nada que configurar</h3><p>${esc(d.note || 'Este modelo no tiene luces ni DPI ajustables.')}</p></div></div>`;
+    this.sync();
+    if (manual) toast('Periférico actualizado');
+  },
+  sync() {
+    const st = this.st, root = this.root;
+    $$('#br-fx button', root).forEach(b => b.classList.toggle('active', b.dataset.fx === st.effect));
+    const usesColor = st.effect === 'static' || st.effect === 'breathing';
+    $('#br-color-row', root).classList.toggle('off', !usesColor); this.wheel.setDisabled(!usesColor);
+    this.wheel.set(st.color); $('#br-cur', root).style.background = st.color;
+    if (document.activeElement !== $('#br-hex', root)) $('#br-hex', root).value = st.color.toUpperCase();
+    $$('.swatch', root).forEach(b => b.classList.toggle('active', b.dataset.c === st.color));
+  },
+  async apply(extra, ok) {
+    const r = await attempt(() => api.call('brand.apply', this.args(extra)), ok);
+    if (r.ok && extra.dpi) this.info.dpi = extra.dpi;
   },
 };
 

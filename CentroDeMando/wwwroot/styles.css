@@ -645,3 +645,4 @@ table.table { width: 100%; border-collapse: collapse; }
 .lang-pick .ico { width: 16px; height: 16px; flex: none; }
 .lang-pick select { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; outline: none; }
 .lang-pick select option { background: var(--panel2); }
+.br-fx { margin-bottom: 10px; flex-wrap: wrap; }

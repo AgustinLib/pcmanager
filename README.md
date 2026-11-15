@@ -24,8 +24,12 @@ Disponible en 10 idiomas: español, English, français, Deutsch, italiano, portu
 |---|---|---|
 | Teclados magnéticos | AJAZZ y otras marcas con chip RongYuan (USB `3151`) | Punto de actuación, Rapid Trigger y zona muerta por tecla; efectos de iluminación |
 | Ratones | VXE y otras marcas con chip Compx (USB `373B`) | DPI, frecuencia de sondeo, distancia de levantamiento y más |
+| Logitech | Ratones y teclados G (por cable o receptor Lightspeed/Unifying/Bolt) | Iluminación RGB, DPI y batería |
+| Razer | Ratones y teclados con Chroma | Iluminación RGB, brillo y DPI |
+| Redragon y marcas con chip EVision | Teclados (USB `320F`) y ratones Redragon (M711, M908…) | Efecto, color, brillo y velocidad |
+| SteelSeries | Rival 3, 100/110, 300, 600, Aerox 3, Apex 3 TKL | Color, brillo y efecto |
 
-Los demás dispositivos aparecen como «Solo detección».
+Los demás dispositivos aparecen como «Solo detección». Cierra el programa oficial de cada marca (G HUB, Synapse, SteelSeries GG…) mientras uses Centro de Mando, para que no se peleen por el control.
 
 ## Requisitos
 

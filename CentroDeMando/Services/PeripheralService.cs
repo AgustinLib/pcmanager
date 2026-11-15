@@ -43,6 +43,13 @@ public static class PeripheralService
             bool wireless = lower.Contains("dongle") || lower.Contains("receiver") || lower.Contains("wireless") || lower.Contains("2.4");
             string? kind = null, driver = null;
             if (Supported.TryGetValue(vid, out var s)) (kind, driver) = s;
+            else if (Brands.BrandService.BrandOf(vid, pid) != null)
+            {
+                driver = "brand";
+                kind = vid == Brands.BrandService.Holtek ? "mouse" : vid is Brands.BrandService.EVision or Brands.BrandService.Sonix ? "keyboard"
+                     : vid == Brands.BrandService.Logitech && Brands.LogitechDevice.IsReceiver(pid) ? "mouse" : null;
+            }
+            if (kind != null) { }
             else if (lower.Contains("mouse") || lower.Contains("ratón")) kind = "mouse";
             else if (lower.Contains("keyboard") || lower.Contains("teclado")) kind = "keyboard";
             else if (lower.Contains("headset") || lower.Contains("headphone") || lower.Contains("auricular") || lower.Contains("audio")) kind = "headset";

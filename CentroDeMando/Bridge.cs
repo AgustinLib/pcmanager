@@ -81,7 +81,7 @@ public sealed class Bridge : IDisposable
             ["mouse.apply"] = a => Mouse.Apply(a),
 
             ["kb.status"] = _ => Keyboard.Refresh(),
-            ["kb.read"] = _ => Keyboard.Read(),
+            ["kb.read"] = a => Keyboard.Read(a.ValueKind == JsonValueKind.Object && a.TryGetProperty("force", out var f) && f.ValueKind == JsonValueKind.True),
             ["kb.setLed"] = a => { Keyboard.SetLed(a); return true; },
             ["kb.apply"] = a => Keyboard.Apply(a),
 
@@ -97,6 +97,15 @@ public sealed class Bridge : IDisposable
     public void Start()
     {
         Hardware.Start();
+        // Lectura previa del teclado en segundo plano: así la página de Periféricos abre al instante.
+        Task.Run(async () =>
+        {
+            for (int i = 0; i < 40; i++)
+            {
+                await Task.Delay(i == 0 ? 4000 : 30000);
+                try { Keyboard.Read(); return; } catch { }
+            }
+        });
         // Diagnóstico: a los pocos segundos de arrancar se guarda una lectura completa junto a los ajustes.
         Task.Run(async () =>
         {

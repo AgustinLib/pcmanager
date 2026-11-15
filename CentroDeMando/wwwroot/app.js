@@ -39,7 +39,7 @@ const api = (() => {
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(new Error('El programa no ha respondido a tiempo (' + cmd + ')'));
-      }, 15000);
+      }, /^kb.(read|apply)$/.test(cmd) ? 90000 : 15000);
       pending.set(id, { resolve, reject, timer });
       try { post({ id, cmd, args: args ?? {} }); }
       catch (e) { clearTimeout(timer); pending.delete(id); reject(e); }
@@ -1736,7 +1736,8 @@ const Kb = {
   async refresh(manual) {
     const r = await attempt(() => api.call('kb.status'));
     if (!r.ok) return this.setStatus({ found: false, online: false, error: r.error && r.error.message }, false);
-    this.setStatus(r.result, true);
+    this.forceNext = !!manual;
+    this.setStatus(r.result, !!manual);
     if (manual && r.result && r.result.found && !r.result.online) toast('El teclado sigue dormido: pulsa cualquier tecla para despertarlo', 'info');
   },
   setStatus(st, forceRead) {
@@ -1783,8 +1784,9 @@ const Kb = {
   async read() {
     if (this.reading) return;
     this.reading = true;
-    if (!this.data) $('#kb-empty', this.root).innerHTML = '<div class="card"><div class="skeleton" style="height:220px"></div></div>';
-    const r = await attempt(() => api.call('kb.read'));
+    if (!this.data) $('#kb-empty', this.root).innerHTML = '<div class="card"><p class="hint" style="margin:0 0 10px">Leyendo los ajustes del teclado… La primera vez tarda unos segundos.</p><div class="skeleton" style="height:200px"></div></div>';
+    const force = this.forceNext; this.forceNext = false;
+    const r = await attempt(() => api.call('kb.read', { force }));
     this.reading = false;
     if (r.ok && r.result && Array.isArray(r.result.keys)) { this.setData(r.result); $('#kb-empty', this.root).innerHTML = ''; $('#kb-main', this.root).hidden = false; this.renderStatus(); }
     else if (!this.data) {

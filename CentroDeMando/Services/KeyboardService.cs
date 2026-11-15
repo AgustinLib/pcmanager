@@ -169,11 +169,32 @@ public sealed class KeyboardService : IDisposable
     static double Mm(ushort v) => Math.Round(v / 100.0, 2);
     static ushort Raw(double mm, double min, double max) => (ushort)Math.Round(Math.Clamp(mm, min, max) * 100.0);
 
-    public ReadResult Read() => Guard(() =>
+    // Copia en memoria de los ajustes por tecla: leerlos del teclado lleva ~15 s por el servicio de AJAZZ,
+    // así que se leen una vez y después se actualizan con cada cambio que aplica la app.
+    readonly Dictionary<RyKeyboard.MagParam, ushort[]> _c16 = new();
+    readonly Dictionary<RyKeyboard.MagParam, byte[]> _c8 = new();
+    uint _cacheId;
+
+    ushort[] A16(RyKeyboard kb, IotDriver.Device dev, RyKeyboard.MagParam p)
+    {
+        if (_cacheId != dev.Id) { _c16.Clear(); _c8.Clear(); _cacheId = dev.Id; }
+        if (!_c16.TryGetValue(p, out var v)) _c16[p] = v = kb.ReadArray16(p);
+        return (ushort[])v.Clone();
+    }
+    byte[] A8(RyKeyboard kb, IotDriver.Device dev, RyKeyboard.MagParam p)
+    {
+        if (_cacheId != dev.Id) { _c16.Clear(); _c8.Clear(); _cacheId = dev.Id; }
+        if (!_c8.TryGetValue(p, out var v)) _c8[p] = v = kb.ReadArray8(p);
+        return (byte[])v.Clone();
+    }
+
+    /// <summary>Lee los ajustes del teclado. Sin «force» usa la copia en memoria si ya existe.</summary>
+    public ReadResult Read(bool force = false) => Guard(() =>
     {
         lock (_lock)
         {
             var kb = Open(out var dev);
+            if (force) { _c16.Clear(); _c8.Clear(); }
             var r = ReadCore(kb, dev);
             _awake = true;
             return r;
@@ -186,11 +207,11 @@ public sealed class KeyboardService : IDisposable
     ReadResult ReadCore(RyKeyboard kb, IotDriver.Device dev)
     {
         var led = kb.GetLed();
-        var act = kb.ReadArray16(RyKeyboard.MagParam.Actuation);
-        var rtp = kb.ReadArray16(RyKeyboard.MagParam.RtPress);
-        var rtr = kb.ReadArray16(RyKeyboard.MagParam.RtRelease);
-        var dz = kb.ReadArray16(RyKeyboard.MagParam.DeadZone);
-        var mode = kb.ReadArray8(RyKeyboard.MagParam.KeyMode);
+        var act = A16(kb, dev, RyKeyboard.MagParam.Actuation);
+        var rtp = A16(kb, dev, RyKeyboard.MagParam.RtPress);
+        var rtr = A16(kb, dev, RyKeyboard.MagParam.RtRelease);
+        var dz = A16(kb, dev, RyKeyboard.MagParam.DeadZone);
+        var mode = A8(kb, dev, RyKeyboard.MagParam.KeyMode);
         var layout = KeyboardModels.HasLayout(dev.Id) ? KeyboardModels.Ak680() : GenericLayout(act);
         var keys = layout.Select(k => new KeyDto(k.Index, k.Label, k.Row, k.X, k.W,
             Mm(act[k.Index]), (mode[k.Index] & 0x80) != 0, Mm(rtp[k.Index]), Mm(rtr[k.Index]), Mm(dz[k.Index]))).ToArray();
@@ -243,41 +264,42 @@ public sealed class KeyboardService : IDisposable
             var writes = new List<Action<bool>>();
             if (actuation.HasValue)
             {
-                var arr = kb.ReadArray16(RyKeyboard.MagParam.Actuation);
+                var arr = A16(kb, dev, RyKeyboard.MagParam.Actuation);
                 foreach (int i in sel) arr[i] = Raw(actuation.Value, Lim.ActMin, Lim.ActMax);
-                writes.Add(c => kb.WriteArray16(RyKeyboard.MagParam.Actuation, arr, KeyCount, c));
+                writes.Add(c => { kb.WriteArray16(RyKeyboard.MagParam.Actuation, arr, KeyCount, c); _c16[RyKeyboard.MagParam.Actuation] = arr; });
             }
             if (rtPress.HasValue)
             {
-                var arr = kb.ReadArray16(RyKeyboard.MagParam.RtPress);
+                var arr = A16(kb, dev, RyKeyboard.MagParam.RtPress);
                 foreach (int i in sel) arr[i] = Raw(rtPress.Value, Lim.RtMin, Lim.RtMax);
-                writes.Add(c => kb.WriteArray16(RyKeyboard.MagParam.RtPress, arr, KeyCount, c));
+                writes.Add(c => { kb.WriteArray16(RyKeyboard.MagParam.RtPress, arr, KeyCount, c); _c16[RyKeyboard.MagParam.RtPress] = arr; });
             }
             if (rtRelease.HasValue)
             {
-                var arr = kb.ReadArray16(RyKeyboard.MagParam.RtRelease);
+                var arr = A16(kb, dev, RyKeyboard.MagParam.RtRelease);
                 foreach (int i in sel) arr[i] = Raw(rtRelease.Value, Lim.RtMin, Lim.RtMax);
-                writes.Add(c => kb.WriteArray16(RyKeyboard.MagParam.RtRelease, arr, KeyCount, c));
+                writes.Add(c => { kb.WriteArray16(RyKeyboard.MagParam.RtRelease, arr, KeyCount, c); _c16[RyKeyboard.MagParam.RtRelease] = arr; });
             }
             if (deadzone.HasValue)
             {
-                var arr = kb.ReadArray16(RyKeyboard.MagParam.DeadZone);
+                var arr = A16(kb, dev, RyKeyboard.MagParam.DeadZone);
                 foreach (int i in sel) arr[i] = Raw(deadzone.Value, Lim.DzMin, Lim.DzMax);
-                writes.Add(c => kb.WriteArray16(RyKeyboard.MagParam.DeadZone, arr, KeyCount, c));
+                writes.Add(c => { kb.WriteArray16(RyKeyboard.MagParam.DeadZone, arr, KeyCount, c); _c16[RyKeyboard.MagParam.DeadZone] = arr; });
             }
             if (rt.HasValue)
             {
-                var arr = kb.ReadArray8(RyKeyboard.MagParam.KeyMode);
+                var arr = A8(kb, dev, RyKeyboard.MagParam.KeyMode);
                 foreach (int i in sel)
                 {
                     // Solo se cambia el bit de Rapid Trigger en teclas en modo normal (no DKS/MT/etc.).
                     if ((arr[i] & 0x7F) != 0) continue;
                     arr[i] = (byte)(rt.Value ? 0x80 : 0x00);
                 }
-                writes.Add(c => kb.WriteArray8(RyKeyboard.MagParam.KeyMode, arr, KeyCount, c));
+                writes.Add(c => { kb.WriteArray8(RyKeyboard.MagParam.KeyMode, arr, KeyCount, c); _c8[RyKeyboard.MagParam.KeyMode] = arr; });
             }
             if (writes.Count == 0) throw new ArgumentException("No hay cambios que aplicar.");
-            for (int w = 0; w < writes.Count; w++) writes[w](w == writes.Count - 1);
+            try { for (int w = 0; w < writes.Count; w++) writes[w](w == writes.Count - 1); }
+            catch { _c16.Clear(); _c8.Clear(); throw; }                    // si algo falla, la próxima lectura será completa
             // Igual que la app oficial: los valores por tecla pertenecen al modo "personalizado" (3).
             try
             {

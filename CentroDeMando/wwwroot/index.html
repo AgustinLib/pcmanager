@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Centro de Mando</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+          <rect x="1" y="1" width="38" height="38" rx="11" fill="#141a27" stroke="#263047"/>
+          <path d="M10 25a10 10 0 1 1 20 0" fill="none" stroke="#2c3750" stroke-width="3.4" stroke-linecap="round"/>
+          <path d="M10 25a10 10 0 0 1 15.5-8.3" fill="none" stroke="#00d6aa" stroke-width="3.4" stroke-linecap="round"/>
+          <path d="M20 25l5.5-6.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+          <circle cx="20" cy="25" r="2.4" fill="#fff"/>
+        </svg>
+        <div class="brand-text"><b>Centro de Mando</b><span id="brand-ver">v1.0.0</span></div>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <div class="side-foot" id="side-foot"></div>
+    </aside>
+
+    <main class="main">
+      <div class="banner" id="admin-banner" hidden></div>
+      <header class="topbar">
+        <div class="top-title">
+          <h1 id="page-title">Panel</h1>
+          <p id="page-sub"></p>
+        </div>
+        <div class="top-right" id="top-right"></div>
+      </header>
+      <div class="content" id="content">
+        <section class="page" id="page-panel"></section>
+        <section class="page" id="page-monitor"></section>
+        <section class="page" id="page-fans"></section>
+        <section class="page" id="page-rgb"></section>
+        <section class="page" id="page-perif"></section>
+        <section class="page" id="page-oc"></section>
+        <section class="page fill" id="page-proc"></section>
+      </div>
+    </main>
+  </div>
+
+  <div id="toasts" aria-live="polite"></div>
+  <div id="modal-root"></div>
+  <div class="boot" id="boot"><div class="boot-spin"></div><span>Iniciando…</span></div>
+
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

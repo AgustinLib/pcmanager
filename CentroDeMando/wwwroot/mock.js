@@ -169,9 +169,11 @@
   const ocGpu = () => qs.get('gpuoc') === 'off' ? { available: false, error: 'No se ha encontrado el controlador de NVIDIA (nvapi64.dll).', name: hardware.gpu }
     : { available: true, name: hardware.gpu, coreOffset: { cur: sim.gpuOc.core, min: -1000, max: 1000 }, memOffset: { cur: sim.gpuOc.mem, min: -1000, max: 3000 }, powerLimit: { cur: sim.gpuOc.pow, min: 78, max: 100, def: 100 }, tempLimit: { cur: sim.gpuOc.tmp, min: 65, max: 88, def: 83 } };
 
+  const winState = { telemetry: true, adId: true, tailored: true, activity: true, startAds: true, lockAds: true, bingSearch: true, copilot: true, recall: false, feedback: true, location: true, gameMode: true, gameDvr: true, gameBar: true, hags: false, windowedOpt: false, mouseAccel: true, accessKeys: true, darkMode: true, transparency: true, animations: true, fileExt: false, hiddenFiles: false, launchThisPc: false, classicMenu: false, taskbarLeft: false, taskView: true, searchBox: true, widgets: true, endTask: false, secondsClock: false, hibernate: true, fastStartup: true, startupDelay: true, notifications: true, bgApps: true, clipboard: false, storageSense: false, autoReboot: true, p2pUpdates: true, driverUpdates: true, 'svc.diagtrack': true, 'svc.sysmain': true, 'svc.wsearch': true, 'svc.spooler': true, 'svc.fax': true, 'svc.wer': true, 'svc.maps': true, 'svc.xbox': true, 'svc.geo': true, 'svc.retail': true, 'svc.remotereg': false };
+
   /* ───── comandos ───── */
   const handlers = {
-    'app.init': () => ({ version: '1.0.0', isAdmin, pawnIo: !qs.has('nopawn'), hardware, settings: { ...settings } }),
+    'app.init': () => ({ version: '1.2.0', isAdmin, pawnIo: !qs.has('nopawn'), hardware, settings: { ...settings } }),
     'app.relaunchAdmin': () => { setTimeout(() => { qs.delete('noadmin'); location.search = qs.toString(); }, 600); return null; },
     'settings.set': a => { Object.assign(settings, (a && a.patch) || {}); return { ...settings }; },
     'fans.get': () => Object.values(fanCfg).map(c => JSON.parse(JSON.stringify(c))),
@@ -225,6 +227,29 @@
     'oc.setPlan': a => { if (!plans.some(p => p.guid === a.guid)) throw new Error('Plan de energía desconocido'); plans.forEach(p => p.active = p.guid === a.guid); return null; },
     'oc.addUltimatePlan': () => { if (!plans.some(p => p.name === 'Máximo rendimiento')) plans.push({ guid: 'e9a42b02-d5df-448d-aa00-03f14749eb61', name: 'Máximo rendimiento', active: false }); return null; },
     'oc.rebootBios': () => null,
+    'win.list': () => ({ backup: 0, items: Object.entries(winState).map(([id, on]) => ({ id, on, available: true, admin: /^(telemetry|activity|hags|widgets|hibernate|fastStartup|autoReboot|p2pUpdates|driverUpdates|svc.)/.test(id), restart: /bing|copilot|classic|widgets|endTask|seconds|notif/.test(id) ? 'explorer' : id === 'hags' ? 'reboot' : '', error: null })) }),
+    'win.set': a => { winState[a.id] = a.on; return { id: a.id, on: a.on, available: true, admin: false, restart: '', error: null }; },
+    'win.restore': () => ({ restored: 0, failed: [] }),
+    'win.info': () => ({ caption: 'Windows 11 Pro', version: '24H2', build: '26100.2894', name: 'MI-PC', installed: '2025-03-14T10:00:00', uptimeSec: 19800 }),
+    'win.tool': () => true, 'win.repair': () => true, 'win.restartExplorer': () => true, 'win.restorePoint': () => true, 'win.reboot': () => true,
+    'startup.list': () => ({ isAdmin, items: [
+      { id: 'user|Discord', name: 'Discord', command: '"C:\\Users\\usuario\\AppData\\Local\\Discord\\Update.exe" --processStart Discord.exe', location: 'user', enabled: true, admin: false, publisher: 'Discord Inc.', description: 'Discord', icon: null },
+      { id: 'user|Steam', name: 'Steam', command: '"C:\\Program Files (x86)\\Steam\\steam.exe" -silent', location: 'user', enabled: true, admin: false, publisher: 'Valve Corporation', description: 'Steam', icon: null },
+      { id: 'machine|SecurityHealth', name: 'SecurityHealth', command: '%windir%\\system32\\SecurityHealthSystray.exe', location: 'machine', enabled: true, admin: true, publisher: 'Microsoft Corporation', description: 'Windows Security notification icon', icon: null },
+      { id: 'user|Spotify', name: 'Spotify', command: '"C:\\Users\\usuario\\AppData\\Roaming\\Spotify\\Spotify.exe" --autostart', location: 'user', enabled: false, admin: false, publisher: 'Spotify Ltd', description: 'Spotify', icon: null },
+    ] }),
+    'startup.set': () => true, 'startup.reveal': () => true,
+    'clean.scan': () => ({ items: [['temp', 4.7e8], ['winTemp', 1.2e8, true], ['shaders', 1.6e9], ['browser', 1.9e9], ['thumbs', 1.7e7], ['crash', 7e5], ['wuCache', 9.3e8, true], ['doCache', 0, true], ['recycle', 2.1e9]].map(([id, bytes, admin]) => ({ id, bytes, files: 100, admin: !!admin, available: true })),
+      drives: [{ name: 'C:', label: '', format: 'NTFS', total: 479e9, free: 212e9, system: true }, { name: 'D:', label: 'Datos', format: 'NTFS', total: 1000e9, free: 417e9, system: false }] }),
+    'clean.run': () => ({ freed: 2.4e9, deleted: 4200, skipped: 12 }),
+    'net.info': () => ({ isAdmin, adapters: [{ id: '{A}', name: 'Ethernet', desc: 'Realtek PCIe GbE Family Controller', type: 'ethernet', speedMbps: 1000, mac: '00:11:22:33:44:55', ipv4: ['192.168.1.20'], gateway: '192.168.1.1', dns: ['192.168.1.1'], dnsMode: 'auto', ssid: null, signal: null }] }),
+    'net.ping': a => [['Router', '192.168.1.1', 1], ['Cloudflare', '1.1.1.1', 9], ['Google', '8.8.8.8', 11]].concat(a.host ? [[a.host, a.host, 24]] : []).map(([name, host, ms]) => ({ name, host, avg: ms, min: ms, max: ms + 2, jitter: .4, loss: 0 })),
+    'net.speed': () => ({ ping: 9, downMbps: 612.4, upMbps: 304.1 }),
+    'net.publicIp': () => ({ ip: '203.0.113.42' }),
+    'net.setDns': () => true, 'net.flushDns': () => true, 'net.renew': () => true, 'net.reset': () => true,
+    'app.autostart': () => ({ enabled: false }), 'app.setAutostart': a => ({ enabled: !!a.on }),
+    'app.checkUpdate': () => ({ latest: '1.2.0', newer: false, url: 'https://github.com/AgustinLib/pcmanager/releases' }),
+    'app.openData': () => true, 'app.testAlert': () => true,
   };
 
   window.MockBridge = {

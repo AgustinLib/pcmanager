@@ -39,7 +39,7 @@ const api = (() => {
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(new Error('El programa no ha respondido a tiempo (' + cmd + ')'));
-      }, /^kb.(read|apply)$/.test(cmd) ? 90000 : 15000);
+      }, /^(kb.(read|apply)|win.restorePoint|clean.(scan|run))$/.test(cmd) ? 120000 : /^(net.(speed|ping|renew|reset|setDns)|win.(set|restore)|app.setAutostart)$/.test(cmd) ? 60000 : 15000);
       pending.set(id, { resolve, reject, timer });
       try { post({ id, cmd, args: args ?? {} }); }
       catch (e) { clearTimeout(timer); pending.delete(id); reject(e); }
@@ -118,6 +118,12 @@ const I = {
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/>',
   chip: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/>',
+  rocket: '<path d="M12 15l-3-3a13 13 0 0 1 9.5-8.5c.3 0 .5.2.5.5A13 13 0 0 1 12 15z"/><path d="M9 12H5l2.5-3.5H11M12 15v4l3.5-2.5V13"/><path d="M6 16.5c-1.2.9-1.8 2.6-2 4 1.4-.2 3.1-.8 4-2"/>',
+  folder: '<path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  windows: '<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1"/><rect x="13" y="13" width="7.5" height="7.5" rx="1"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  wifi: '<path d="M2.5 9a14 14 0 0 1 19 0"/><path d="M5.5 12.5a9.5 9.5 0 0 1 13 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><path d="M12 19.5h.01"/>',
 };
 const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[name] || ''}</svg>`;
 
@@ -273,13 +279,18 @@ const needAdminMsg = () => state.init && !state.init.isAdmin ? 'Necesita permiso
 const state = { init: null, settings: {}, sensors: null, page: null };
 
 const PAGES = [
-  { id: 'panel', label: 'Panel', icon: 'panel', title: 'Panel', sub: 'Resumen del equipo en tiempo real' },
+  { id: 'panel', label: 'Panel', icon: 'panel', title: 'Panel', sub: 'Resumen del equipo en tiempo real', group: 'Equipo' },
   { id: 'monitor', label: 'Monitor', icon: 'monitor', title: 'Monitor', sub: 'Temperaturas, uso y sensores al detalle' },
   { id: 'fans', label: 'Ventiladores', icon: 'fan', title: 'Ventiladores', sub: 'Velocidad y curvas de cada ventilador' },
   { id: 'rgb', label: 'RGB', icon: 'rgb', title: 'Iluminación RGB', sub: 'Tiras y ventiladores conectados a los conectores RGB de la placa base' },
   { id: 'perif', label: 'Periféricos', icon: 'mouse', title: 'Periféricos', sub: 'Teclado, ratón y demás dispositivos conectados' },
   { id: 'oc', label: 'Overclock', icon: 'bolt', title: 'Overclock', sub: 'Tarjeta gráfica, procesador y memoria' },
-  { id: 'proc', label: 'Procesos', icon: 'list', title: 'Procesos', sub: 'Cierra lo que sobra para que el PC vaya más fluido' },
+  { id: 'proc', label: 'Procesos', icon: 'list', title: 'Procesos', sub: 'Cierra lo que sobra para que el PC vaya más fluido', group: 'Sistema' },
+  { id: 'startup', label: 'Arranque', icon: 'rocket', title: 'Arranque', sub: 'Programas que se abren solos al encender el PC' },
+  { id: 'clean', label: 'Limpieza', icon: 'broom', title: 'Limpieza', sub: 'Libera espacio borrando archivos que sobran' },
+  { id: 'net', label: 'Red', icon: 'wifi', title: 'Red', sub: 'Conexión, DNS, ping y test de velocidad' },
+  { id: 'win', label: 'Windows', icon: 'windows', title: 'Windows', sub: 'Activa o desactiva funciones de Windows' },
+  { id: 'settings', label: 'Ajustes', icon: 'gear', title: 'Ajustes', sub: 'Opciones de Centro de Mando', group: '' },
 ];
 
 async function saveSettings(patch) {
@@ -2384,8 +2395,534 @@ const Proc = {
   },
 };
 
+/* ══════════════════════ Utilidades de sistema ══════════════════════ */
+const fmtBytes = b => !isNum(b) ? '—' : b >= 1073741824 ? NF[1].format(b / 1073741824) + ' GB' : b >= 1048576 ? NF[0].format(b / 1048576) + ' MB' : b >= 1024 ? NF[0].format(b / 1024) + ' KB' : NF[0].format(b) + ' B';
+function fmtDur(sec) {
+  if (!isNum(sec)) return '—';
+  const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+  return d ? `${d} d ${hh} h` : hh ? `${hh} h ${m} min` : `${m} min`;
+}
+const fmtDate = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleDateString(I18N.locale, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; };
+const isAdmin = () => !!(state.init && state.init.isAdmin);
+const adminTag = () => `<i class="tw-tag adm" title="Necesita abrir la app como administrador">${icon('shield')}Administrador</i>`;
+const busy = async (btn, fn) => { btn.classList.add('busy'); try { return await fn(); } finally { btn.classList.remove('busy'); } };
+
+/* ══════════════════════ WINDOWS ══════════════════════ */
+const WIN_GROUPS = [
+  { id: 'privacy', label: 'Privacidad', icon: 'eye' },
+  { id: 'gaming', label: 'Juegos', icon: 'gamepad' },
+  { id: 'look', label: 'Escritorio', icon: 'windows' },
+  { id: 'system', label: 'Sistema', icon: 'chip' },
+  { id: 'services', label: 'Servicios', icon: 'gear' },
+];
+// [grupo, título, descripción, recomendado (true = activado, false = desactivado, undefined = a tu gusto)]
+const TWEAKS = {
+  telemetry: ['privacy', 'Telemetría de Windows', 'Envío de datos de diagnóstico a Microsoft. Desactivada, Windows manda solo lo mínimo.', false],
+  adId: ['privacy', 'ID de publicidad', 'Identificador que usan las apps para mostrarte anuncios personalizados.', false],
+  tailored: ['privacy', 'Experiencias personalizadas', 'Consejos y anuncios basados en tus datos de diagnóstico.', false],
+  activity: ['privacy', 'Historial de actividad', 'Windows guarda y sincroniza lo que haces en el PC.', false],
+  startAds: ['privacy', 'Sugerencias y anuncios en Inicio', 'Apps recomendadas, consejos y aplicaciones que se instalan solas.', false],
+  lockAds: ['privacy', 'Anuncios en la pantalla de bloqueo', 'Datos curiosos, consejos y promociones sobre la imagen de bloqueo.', false],
+  bingSearch: ['privacy', 'Resultados de Bing en la búsqueda', 'Al buscar en Inicio también se busca en internet.', false],
+  copilot: ['privacy', 'Copilot', 'Asistente de IA de Windows: botón de la barra de tareas y atajo de teclado.', undefined],
+  recall: ['privacy', 'Recall', 'Capturas periódicas de la pantalla para poder buscar en ellas (solo PC Copilot+).', false],
+  feedback: ['privacy', 'Encuestas de opinión', 'Windows te pregunta de vez en cuando qué te parece.', false],
+  location: ['privacy', 'Ubicación para las apps', 'Permite que las aplicaciones sepan dónde estás.', undefined],
+  gameMode: ['gaming', 'Modo de juego', 'Da prioridad al juego y evita que Windows Update instale cosas mientras juegas.', true],
+  gameDvr: ['gaming', 'Grabación en segundo plano', 'Graba sin parar los últimos minutos de juego. Resta rendimiento.', false],
+  gameBar: ['gaming', 'Xbox Game Bar', 'Panel que se abre con Win + G.', undefined],
+  hags: ['gaming', 'Programación de GPU acelerada por hardware', 'La tarjeta gráfica gestiona su propia memoria: menos latencia. Necesaria para la generación de fotogramas.', true],
+  windowedOpt: ['gaming', 'Optimizaciones para juegos en ventana', 'Menos latencia en juegos en ventana o a pantalla completa sin bordes.', true],
+  mouseAccel: ['gaming', 'Aceleración del ratón', '«Mejorar la precisión del puntero». Desactivada, el puntero se mueve siempre igual: mejor para apuntar.', false],
+  accessKeys: ['gaming', 'Atajos de teclas especiales', 'Pulsar Mayús cinco veces activa las teclas especiales y te saca del juego.', false],
+  darkMode: ['look', 'Modo oscuro', 'Tema oscuro para Windows y las aplicaciones.', undefined],
+  transparency: ['look', 'Efectos de transparencia', 'Fondos translúcidos en Inicio, la barra de tareas y las ventanas.', undefined],
+  animations: ['look', 'Animaciones', 'Animaciones al abrir, minimizar y maximizar ventanas.', undefined],
+  fileExt: ['look', 'Mostrar extensiones de archivo', 'Ves si un archivo es .exe, .pdf, .jpg… Ayuda a detectar archivos peligrosos.', true],
+  hiddenFiles: ['look', 'Mostrar archivos ocultos', 'El Explorador muestra carpetas ocultas como AppData.', undefined],
+  launchThisPc: ['look', 'El Explorador abre en «Este equipo»', 'En lugar de la página de inicio con los archivos recientes.', undefined],
+  classicMenu: ['look', 'Menú contextual clásico', 'Clic derecho con todas las opciones, sin pasar por «Mostrar más opciones».', undefined],
+  taskbarLeft: ['look', 'Barra de tareas a la izquierda', 'Iconos alineados a la izquierda, como en Windows 10.', undefined],
+  taskView: ['look', 'Botón Vista de tareas', 'Botón de escritorios virtuales en la barra de tareas.', undefined],
+  searchBox: ['look', 'Búsqueda en la barra de tareas', 'Icono de búsqueda junto al botón de Inicio.', undefined],
+  widgets: ['look', 'Widgets y noticias', 'Panel de noticias y tiempo de la barra de tareas.', false],
+  endTask: ['look', '«Finalizar tarea» en la barra de tareas', 'Clic derecho en un programa colgado para cerrarlo al momento.', true],
+  secondsClock: ['look', 'Segundos en el reloj', 'El reloj de la barra de tareas muestra los segundos.', undefined],
+  hibernate: ['system', 'Hibernación', 'Desactivarla libera varios GB del disco del sistema (archivo hiberfil.sys).', undefined],
+  fastStartup: ['system', 'Inicio rápido', 'Arranque híbrido. Desactivado, cada apagado es completo y se evitan fallos de controladores.', false],
+  startupDelay: ['system', 'Retraso de los programas de inicio', 'Windows espera unos segundos antes de abrir los programas de inicio.', false],
+  notifications: ['system', 'Notificaciones', 'Avisos de las aplicaciones en la esquina de la pantalla.', undefined],
+  bgApps: ['system', 'Apps en segundo plano', 'Las apps de Microsoft Store siguen funcionando aunque no las uses.', undefined],
+  clipboard: ['system', 'Historial del portapapeles', 'Win + V muestra todo lo que has copiado.', true],
+  storageSense: ['system', 'Sensor de almacenamiento', 'Borra temporales y la papelera antigua cuando falta espacio.', undefined],
+  autoReboot: ['system', 'Reinicio automático tras actualizar', 'Windows puede reiniciar el PC solo aunque tengas la sesión abierta.', false],
+  p2pUpdates: ['system', 'Compartir actualizaciones con otros PC', 'Optimización de distribución: usa tu conexión para enviar actualizaciones a otros equipos.', false],
+  driverUpdates: ['system', 'Controladores por Windows Update', 'Windows instala controladores solo. Desactívalo si te cambia el de la gráfica.', undefined],
+  'svc.diagtrack': ['services', 'Telemetría (DiagTrack)', 'Servicio que envía los datos de diagnóstico a Microsoft.', false],
+  'svc.sysmain': ['services', 'SysMain (Superfetch)', 'Precarga en la RAM los programas que más usas. Con un SSD apenas se nota.', undefined],
+  'svc.wsearch': ['services', 'Indexación de búsqueda', 'Índice para que buscar archivos sea instantáneo.', undefined],
+  'svc.spooler': ['services', 'Cola de impresión', 'Solo hace falta si usas impresora o «Imprimir en PDF».', undefined],
+  'svc.fax': ['services', 'Fax', 'Envío y recepción de fax.', false],
+  'svc.wer': ['services', 'Informe de errores', 'Envía informes a Microsoft cuando un programa se cuelga.', false],
+  'svc.maps': ['services', 'Mapas descargados', 'Actualiza los mapas sin conexión de la app Mapas.', false],
+  'svc.xbox': ['services', 'Servicios de Xbox', 'Sesión de Xbox, partidas guardadas en la nube y mandos de Xbox. Algunos juegos los necesitan.', undefined],
+  'svc.geo': ['services', 'Geolocalización', 'Servicio de ubicación de Windows.', undefined],
+  'svc.retail': ['services', 'Modo de demostración', 'Solo sirve para los PC de exposición en tiendas.', false],
+  'svc.remotereg': ['services', 'Registro remoto', 'Permite modificar el registro desde otro equipo de la red.', false],
+};
+const WIN_TOOLS = [
+  ['update', 'Windows Update', 'refresh'], ['apps', 'Aplicaciones instaladas', 'list'], ['devmgmt', 'Administrador de dispositivos', 'chip'],
+  ['taskmgr', 'Administrador de tareas', 'monitor'], ['services', 'Servicios', 'gear'], ['msconfig', 'Configuración del sistema', 'gear'],
+  ['diskmgmt', 'Administración de discos', 'disk'], ['cleanmgr', 'Liberador de espacio', 'broom'], ['eventvwr', 'Visor de eventos', 'warn'],
+  ['reliability', 'Monitor de confiabilidad', 'monitor'], ['resmon', 'Monitor de recursos', 'monitor'], ['msinfo', 'Información del sistema', 'info'],
+  ['sysprops', 'Propiedades del sistema', 'panel'], ['restore', 'Protección del sistema', 'shield'], ['power', 'Opciones de energía', 'power'],
+  ['graphics', 'Gráficos por aplicación', 'gpu'], ['netconn', 'Conexiones de red', 'net'], ['sound', 'Sonido', 'volume'],
+  ['regedit', 'Editor del registro', 'pencil'], ['control', 'Panel de control', 'panel'],
+];
+
+const Win = {
+  items: new Map(), tab: 'privacy', pending: new Set(), loaded: false, backup: 0,
+  mount(root) {
+    this.root = root;
+    root.innerHTML = `
+    <div class="grid">
+      <div class="card span8">
+        <div class="card-head">${icon('windows')}<div><h3 id="win-caption">Windows</h3><span class="sub" id="win-ver"></span></div></div>
+        <div class="stats four">
+          <div><span>Nombre del equipo</span><b id="win-name">—</b></div>
+          <div><span>Encendido desde hace</span><b id="win-up">—</b></div>
+          <div><span>Instalado el</span><b id="win-inst">—</b></div>
+          <div><span>Ajustes cambiados</span><b id="win-changed">—</b></div>
+        </div>
+      </div>
+      <div class="card span4">
+        <div class="card-head">${icon('shield')}<div><h3>Copia de seguridad</h3><span class="sub">Por si quieres volver atrás</span></div></div>
+        <div class="win-safe">
+          <button class="btn" id="win-rp">${icon('shield')}Crear punto de restauración</button>
+          <button class="btn" id="win-undo">${icon('refresh')}Deshacer mis cambios</button>
+        </div>
+        <p class="hint" style="margin-top:8px">La app guarda cómo estaba cada ajuste antes de cambiarlo.</p>
+      </div>
+      <div class="card span12">
+        <div class="card-head">${icon('gear')}<div><h3>Funciones de Windows</h3><span class="sub">Actívalas o desactívalas a tu gusto</span></div>
+          <div class="right"><button class="btn primary sm" id="win-rec">${icon('check')}Aplicar recomendados</button></div></div>
+        <div class="seg win-tabs" id="win-tabs"></div>
+        <div id="win-pending"></div>
+        <div class="tw-list" id="win-list"><div class="skeleton" style="height:240px"></div></div>
+      </div>
+      <div class="card span12">
+        <div class="card-head">${icon('chip')}<div><h3>Herramientas de Windows</h3><span class="sub">Acceso directo a las herramientas del sistema</span></div>
+          <div class="right"><button class="btn sm" id="win-explorer">${icon('refresh')}Reiniciar Explorador</button>
+          <button class="btn sm" id="win-repair" title="Abre una consola que comprueba y repara los archivos de Windows (SFC y DISM)">${icon('shield')}Reparar Windows</button></div></div>
+        <div class="tools">${WIN_TOOLS.map(([id, label, ic]) => `<button class="tool" data-tool="${id}">${icon(ic)}<span>${label}</span></button>`).join('')}</div>
+      </div>
+    </div>`;
+    $('#win-tabs', root).addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { this.tab = b.dataset.tab; this.render(); } });
+    $('#win-list', root).addEventListener('change', e => { const i = e.target.closest('[data-tw]'); if (i) this.toggle(i.dataset.tw, i.checked, i); });
+    $('.tools', root).addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) attempt(() => api.call('win.tool', { id: b.dataset.tool })); });
+    $('#win-explorer', root).addEventListener('click', e => this.restartExplorer(e.currentTarget));
+    $('#win-repair', root).addEventListener('click', async () => {
+      if (await modal({ title: 'Reparar Windows', body: '<p>Se abrirá una consola de administrador que comprueba los archivos de Windows (SFC) y repara la imagen del sistema (DISM). Tarda entre 10 y 30 minutos; puedes seguir usando el PC mientras tanto.</p>', okLabel: 'Empezar' }))
+        attempt(() => api.call('win.repair'));
+    });
+    $('#win-rp', root).addEventListener('click', e => busy(e.currentTarget, () => attempt(() => api.call('win.restorePoint'), 'Punto de restauración creado')));
+    $('#win-undo', root).addEventListener('click', () => this.undo());
+    $('#win-rec', root).addEventListener('click', () => this.applyRecommended());
+    $('#win-pending', root).addEventListener('click', e => {
+      if (e.target.closest('#win-pend-exp')) this.restartExplorer(e.target.closest('button'));
+      if (e.target.closest('#win-pend-boot')) this.reboot();
+    });
+  },
+  show() { this.load(); this.info(); },
+  async info() {
+    try {
+      const i = await api.call('win.info');
+      setText('#win-caption', i.caption || 'Windows', this.root);
+      setText('#win-ver', [i.version ? 'Versión ' + i.version : '', i.build ? 'compilación ' + i.build : ''].filter(Boolean).join(' · '), this.root);
+      setText('#win-name', i.name || '—', this.root); setText('#win-up', fmtDur(i.uptimeSec), this.root); setText('#win-inst', fmtDate(i.installed), this.root);
+    } catch { /* sin datos */ }
+  },
+  async load() {
+    try {
+      const r = await api.call('win.list');
+      this.items = new Map((r.items || []).map(x => [x.id, x])); this.backup = r.backup || 0; this.loaded = true;
+    } catch (e) { if (!this.loaded) $('#win-list', this.root).innerHTML = `<div class="mini-empty">${esc(e.message)}</div>`; return; }
+    this.render();
+  },
+  recDiff() {
+    return [...this.items.values()].filter(x => x.available && x.on != null && TWEAKS[x.id] && TWEAKS[x.id][3] !== undefined && x.on !== TWEAKS[x.id][3] && (!x.admin || isAdmin()));
+  },
+  render() {
+    const root = this.root, items = [...this.items.values()].filter(x => TWEAKS[x.id]);
+    $('#win-tabs', root).innerHTML = WIN_GROUPS.map(g => {
+      const n = items.filter(x => TWEAKS[x.id][0] === g.id && x.available).length;
+      return `<button data-tab="${g.id}" class="${this.tab === g.id ? 'active' : ''}">${icon(g.icon)}${g.label}<i class="cnt">${n}</i></button>`;
+    }).join('');
+    const list = items.filter(x => TWEAKS[x.id][0] === this.tab).sort((a, b) => (b.available - a.available));
+    $('#win-list', root).innerHTML = list.map(x => {
+      const [, title, desc, rec] = TWEAKS[x.id];
+      const tags = [];
+      if (x.admin) tags.push(adminTag());
+      if (x.restart === 'explorer') tags.push('<i class="tw-tag">Reinicia el Explorador</i>');
+      if (x.restart === 'reboot') tags.push('<i class="tw-tag">Hay que reiniciar el PC</i>');
+      if (rec !== undefined && x.available) tags.push(`<i class="tw-tag rec ${x.on !== rec ? 'diff' : ''}">${rec ? 'Recomendado: activado' : 'Recomendado: desactivado'}</i>`);
+      if (!x.available) tags.push('<i class="tw-tag">No disponible en tu versión de Windows</i>');
+      const dis = !x.available || x.on == null || (x.admin && !isAdmin());
+      return `<div class="tw-row ${x.available ? '' : 'na'}"><div class="tw-txt"><b>${esc(title)}</b><span>${esc(desc)}</span><div class="tw-tags">${tags.join('')}</div></div>
+        <label class="switch" title="${x.admin && !isAdmin() ? 'Necesita abrir la app como administrador' : ''}"><input type="checkbox" data-tw="${x.id}" ${x.on ? 'checked' : ''} ${dis ? 'disabled' : ''}><span></span></label></div>`;
+    }).join('') || '<div class="mini-empty">Nada en este apartado</div>';
+    const diff = this.recDiff();
+    const rb = $('#win-rec', root); rb.disabled = !diff.length; rb.innerHTML = `${icon('check')}Aplicar recomendados${diff.length ? ` (${diff.length})` : ''}`;
+    setText('#win-changed', String(this.backup), root);
+    $('#win-undo', root).disabled = !this.backup;
+    const p = [];
+    if (this.pending.has('explorer')) p.push(`<div class="pending">${icon('info')}<span>Algunos cambios se verán al reiniciar el Explorador de Windows.</span><button class="btn sm" id="win-pend-exp">Reiniciar Explorador</button></div>`);
+    if (this.pending.has('reboot')) p.push(`<div class="pending">${icon('info')}<span>Algunos cambios necesitan reiniciar el PC.</span><button class="btn sm" id="win-pend-boot">Reiniciar ahora</button></div>`);
+    $('#win-pending', root).innerHTML = p.join('');
+  },
+  async toggle(id, on, input) {
+    input.disabled = true;
+    const r = await attempt(() => api.call('win.set', { id, on }), on ? 'Activado' : 'Desactivado');
+    if (r.ok && r.result) {
+      const st = r.result; this.items.set(id, st);
+      if (st.restart) this.pending.add(st.restart);
+    }
+    await this.load();
+  },
+  async applyRecommended() {
+    const diff = this.recDiff(); if (!diff.length) return;
+    const ok = await modal({
+      title: 'Aplicar ajustes recomendados',
+      body: `<p>Se cambiarán estos ajustes:</p><ul>${diff.map(x => `<li><b>${esc(TWEAKS[x.id][1])}</b> → ${TWEAKS[x.id][3] ? 'activar' : 'desactivar'}</li>`).join('')}</ul><p class="hint" style="margin-top:8px">Puedes deshacerlo después con «Deshacer mis cambios».</p>`,
+      okLabel: 'Aplicar',
+    });
+    if (!ok) return;
+    let done = 0, fail = 0;
+    for (const x of diff) {
+      try { const st = await api.call('win.set', { id: x.id, on: TWEAKS[x.id][3] }); done++; if (st && st.restart) this.pending.add(st.restart); } catch { fail++; }
+    }
+    toast(`Ajustes aplicados: ${done}`);
+    if (fail) toast(`Ajustes que no se han podido cambiar: ${fail}`, 'err', 6000);
+    this.load();
+  },
+  async undo() {
+    if (!(await modal({ title: 'Deshacer mis cambios', body: `<p>Los ${this.backup} ajustes que has cambiado desde la app volverán a estar como antes.</p>`, okLabel: 'Deshacer' }))) return;
+    const r = await attempt(() => api.call('win.restore'), r => `Ajustes restaurados: ${r.restored}`);
+    if (r.ok && r.result.failed && r.result.failed.length) toast(`Ajustes que no se han podido restaurar: ${r.result.failed.length}`, 'err', 6000);
+    this.pending.add('explorer');
+    this.load();
+  },
+  async restartExplorer(btn) {
+    await busy(btn, () => attempt(() => api.call('win.restartExplorer'), 'Explorador reiniciado'));
+    this.pending.delete('explorer'); this.render();
+  },
+  async reboot() {
+    if (await modal({ title: 'Reiniciar el PC', body: '<p>Guarda lo que tengas abierto. El PC se reiniciará en 5 segundos.</p>', okLabel: 'Reiniciar', danger: true }))
+      attempt(() => api.call('win.reboot'));
+  },
+};
+
+/* ══════════════════════ ARRANQUE ══════════════════════ */
+const START_LOC = { user: 'Tu usuario', machine: 'Todos los usuarios', machine32: 'Todos los usuarios', folder: 'Carpeta Inicio', folderAll: 'Carpeta Inicio común' };
+const Startup = {
+  items: [], loaded: false,
+  mount(root) {
+    this.root = root;
+    root.innerHTML = `
+    <div class="proc-top">
+      <span class="hint" id="su-sum"></span>
+      <div class="spacer"></div>
+      <button class="btn" id="su-refresh">${icon('refresh')}Actualizar</button>
+    </div>
+    <div class="card"><div id="su-list"><div class="skeleton" style="height:260px"></div></div></div>
+    <p class="hint" style="margin-top:12px">${icon('info')} Desactivar un programa no lo desinstala: solo deja de abrirse al encender el PC. Puedes volver a activarlo cuando quieras.</p>`;
+    $('#su-refresh', root).addEventListener('click', () => this.load(true));
+    $('#su-list', root).addEventListener('change', e => { const i = e.target.closest('[data-su]'); if (i) this.toggle(i.dataset.su, i.checked, i); });
+    $('#su-list', root).addEventListener('click', e => { const b = e.target.closest('[data-reveal]'); if (b) attempt(() => api.call('startup.reveal', { id: b.dataset.reveal })); });
+  },
+  show() { this.load(false); },
+  async load(manual) {
+    try { const r = await api.call('startup.list'); this.items = r.items || []; this.loaded = true; }
+    catch (e) { $('#su-list', this.root).innerHTML = `<div class="mini-empty">${esc(e.message)}</div>`; return; }
+    this.render(); if (manual) toast('Lista actualizada');
+  },
+  render() {
+    const root = this.root, on = this.items.filter(i => i.enabled).length;
+    setText('#su-sum', this.items.length ? `Se abren al iniciar: ${on} de ${this.items.length}` : '', root);
+    $('#su-list', root).innerHTML = this.items.length ? this.items.map(i => {
+      const dis = i.admin && !isAdmin();
+      return `<div class="su-row ${i.enabled ? '' : 'off'}">
+        ${i.icon ? `<img src="${i.icon}" alt="">` : `<span class="su-ico">${icon('rocket')}</span>`}
+        <div class="su-name"><b>${esc(i.name)}</b><span>${esc(i.publisher || i.description || '')}</span></div>
+        <span class="su-cmd" title="${esc(i.command)}">${esc(i.command)}</span>
+        <span class="su-loc">${START_LOC[i.location] || ''}</span>
+        <button class="icon-btn" data-reveal="${esc(i.id)}" title="Abrir la ubicación del archivo">${icon('folder')}</button>
+        <label class="switch" title="${dis ? 'Necesita abrir la app como administrador' : ''}"><input type="checkbox" data-su="${esc(i.id)}" ${i.enabled ? 'checked' : ''} ${dis ? 'disabled' : ''}><span></span></label></div>`;
+    }).join('') : `<div class="empty">${icon('rocket')}<h3>No hay programas de inicio</h3><p>Ningún programa se abre solo al encender el PC.</p></div>`;
+  },
+  async toggle(id, on, input) {
+    input.disabled = true;
+    const it = this.items.find(i => i.id === id);
+    const r = await attempt(() => api.call('startup.set', { id, enabled: on }), `${it ? it.name : ''}: ${on ? 'se abrirá al iniciar' : 'ya no se abrirá al iniciar'}`);
+    if (r.ok && it) it.enabled = on; else input.checked = !on;
+    this.render();
+  },
+};
+
+/* ══════════════════════ LIMPIEZA ══════════════════════ */
+// [título, descripción, marcado por defecto]
+const CLEAN = {
+  temp: ['Archivos temporales', 'Temporales de tus programas con más de un día.', true],
+  winTemp: ['Temporales de Windows', 'Carpeta Temp de Windows (archivos con más de un día).', true],
+  recycle: ['Papelera de reciclaje', 'Vacía la papelera. No se puede deshacer.', false],
+  shaders: ['Caché de sombreadores', 'DirectX, NVIDIA, AMD e Intel. Se vuelve a crear sola; la primera partida de cada juego puede ir algo más lenta.', false],
+  browser: ['Caché de los navegadores', 'Chrome, Edge, Brave, Opera, Vivaldi y Firefox. No borra contraseñas, historial ni sesiones.', false],
+  thumbs: ['Miniaturas', 'Vistas previas de imágenes y vídeos del Explorador. Se vuelven a crear.', true],
+  crash: ['Volcados e informes de errores', 'Archivos que se guardan cuando un programa o Windows se cuelga.', true],
+  wuCache: ['Descargas de Windows Update', 'Actualizaciones que ya están instaladas.', true],
+  doCache: ['Caché de Optimización de distribución', 'Copias de actualizaciones para compartir con otros PC.', true],
+};
+const CLEAN_ORDER = ['temp', 'winTemp', 'recycle', 'shaders', 'browser', 'thumbs', 'crash', 'wuCache', 'doCache'];
+const Clean = {
+  data: null, sel: new Set(CLEAN_ORDER.filter(k => CLEAN[k][2])), scanning: false,
+  mount(root) {
+    this.root = root;
+    root.innerHTML = `
+    <div class="grid">
+      <div class="card span12">
+        <div class="card-head">${icon('disk')}<div><h3>Discos</h3><span class="sub">Espacio libre en cada unidad</span></div></div>
+        <div id="cl-drives"><div class="skeleton" style="height:60px"></div></div>
+      </div>
+      <div class="card span12">
+        <div class="card-head">${icon('broom')}<div><h3>Archivos que sobran</h3><span class="sub">Marca lo que quieras borrar</span></div>
+          <div class="right"><b id="cl-total"></b></div></div>
+        <div id="cl-list"><div class="skeleton" style="height:260px"></div></div>
+        <div class="card-foot"><span class="hint">Los archivos que estén en uso se saltan.</span>
+          <button class="btn" id="cl-scan">${icon('search')}Analizar de nuevo</button>
+          <button class="btn primary" id="cl-run" disabled>${icon('broom')}Limpiar</button></div>
+      </div>
+    </div>`;
+    $('#cl-list', root).addEventListener('click', e => {
+      const r = e.target.closest('[data-cl]'); if (!r || r.classList.contains('na')) return;
+      const k = r.dataset.cl; this.sel.has(k) ? this.sel.delete(k) : this.sel.add(k); this.render();
+    });
+    $('#cl-scan', root).addEventListener('click', () => this.scan());
+    $('#cl-run', root).addEventListener('click', () => this.run());
+  },
+  show() { if (!this.data) this.scan(); },
+  async scan() {
+    if (this.scanning) return; this.scanning = true;
+    const b = $('#cl-scan', this.root); b.classList.add('busy');
+    try { this.data = await api.call('clean.scan'); } catch (e) { toast(e.message, 'err', 6000); }
+    b.classList.remove('busy'); this.scanning = false;
+    this.render();
+  },
+  usable(c) { return c && c.available && (!c.admin || isAdmin()); },
+  render() {
+    const root = this.root, d = this.data; if (!d) return;
+    $('#cl-drives', root).innerHTML = (d.drives || []).map(v => {
+      const used = v.total ? (v.total - v.free) / v.total * 100 : 0;
+      return `<div class="drive"><div><b>${esc(v.name)}</b> <span class="sub">${esc(v.label || (v.system ? 'Sistema' : ''))}</span></div>
+        <div class="bar"><i style="width:${used.toFixed(1)}%;background:${used > 90 ? COL.hot : used > 75 ? COL.warn : COL.accent}"></i></div>
+        <span class="hint">Libres: ${fmtBytes(v.free)} de ${fmtBytes(v.total)}</span></div>`;
+    }).join('') || '<div class="mini-empty">Sin datos</div>';
+    const items = new Map((d.items || []).map(c => [c.id, c]));
+    let total = 0;
+    $('#cl-list', root).innerHTML = CLEAN_ORDER.map(k => {
+      const c = items.get(k), [title, desc] = CLEAN[k], ok = this.usable(c), sel = ok && this.sel.has(k);
+      if (sel) total += c.bytes || 0;
+      const note = !c || !c.available ? 'No hay nada' : c.admin && !isAdmin() ? 'Necesita abrir la app como administrador' : '';
+      return `<div class="cl-row ${ok ? '' : 'na'}" data-cl="${k}"><input type="checkbox" class="cb" ${sel ? 'checked' : ''} ${ok ? '' : 'disabled'} tabindex="-1" style="pointer-events:none">
+        <div class="tw-txt"><b>${esc(title)}</b><span>${esc(note || desc)}</span></div>
+        <span class="cl-size">${ok ? fmtBytes(c.bytes) : '—'}</span></div>`;
+    }).join('');
+    setText('#cl-total', total ? `Seleccionado: ${fmtBytes(total)}` : '', root);
+    const run = $('#cl-run', root); run.disabled = !total; run.innerHTML = `${icon('broom')}Limpiar${total ? ' ' + fmtBytes(total) : ''}`;
+  },
+  async run() {
+    const ids = CLEAN_ORDER.filter(k => this.sel.has(k) && this.usable((this.data.items || []).find(c => c.id === k)));
+    if (!ids.length) return;
+    const ok = await modal({ title: 'Limpiar archivos', body: `<p>Se borrarán:</p><ul>${ids.map(k => `<li>${esc(CLEAN[k][0])}</li>`).join('')}</ul>${ids.includes('recycle') ? '<p style="margin-top:8px">La papelera se vaciará y no se podrá recuperar lo que haya en ella.</p>' : ''}`, okLabel: 'Limpiar', danger: ids.includes('recycle') });
+    if (!ok) return;
+    const b = $('#cl-run', this.root);
+    const r = await busy(b, () => attempt(() => api.call('clean.run', { ids }), r => `Espacio liberado: ${fmtBytes(r.freed)}`));
+    if (r.ok && r.result.skipped) toast(`Archivos en uso que se han saltado: ${r.result.skipped}`, 'info');
+    this.scan();
+  },
+};
+
+/* ══════════════════════ RED ══════════════════════ */
+const DNS = [
+  ['auto', 'Automático (del router)'], ['cloudflare', 'Cloudflare · 1.1.1.1'], ['google', 'Google · 8.8.8.8'],
+  ['quad9', 'Quad9 · 9.9.9.9 (bloquea webs peligrosas)'], ['adguard', 'AdGuard (bloquea anuncios)'], ['opendns', 'OpenDNS'],
+];
+const Net = {
+  data: null,
+  mount(root) {
+    this.root = root;
+    root.innerHTML = `
+    <div class="grid">
+      <div class="card span7"><div class="card-head">${icon('net')}<div><h3>Conexión</h3><span class="sub">Adaptadores de red conectados</span></div>
+        <div class="right"><button class="icon-btn" id="net-refresh" title="Volver a leer">${icon('refresh')}</button></div></div>
+        <div id="net-ad"><div class="skeleton" style="height:150px"></div></div></div>
+      <div class="card span5"><div class="card-head">${icon('bolt')}<div><h3>Test de velocidad</h3><span class="sub">Servidores de Cloudflare</span></div></div>
+        <div class="speed-nums"><div><b id="sp-down">—</b><span>Bajada · Mb/s</span></div><div><b id="sp-up">—</b><span>Subida · Mb/s</span></div><div><b id="sp-ping">—</b><span>Ping · ms</span></div></div>
+        <div class="card-foot"><span class="hint">Tarda unos 20 segundos y gasta algo de datos.</span><button class="btn primary" id="sp-go">${icon('bolt')}Empezar</button></div></div>
+      <div class="card span7"><div class="card-head">${icon('monitor')}<div><h3>Ping</h3><span class="sub">Latencia con el router e internet</span></div></div>
+        <table class="table ping-t"><thead><tr><th>Destino</th><th class="c-num">Media</th><th class="c-num">Mín. / máx.</th><th class="c-num">Variación</th><th class="c-num">Perdidos</th></tr></thead><tbody id="ping-body"><tr><td colspan="5"><div class="mini-empty">Pulsa «Medir» para comprobar la conexión</div></td></tr></tbody></table>
+        <div class="card-foot"><input class="field" id="ping-host" placeholder="Otra dirección (opcional): ej. servidor del juego" spellcheck="false" style="flex:1;min-width:0"><button class="btn primary" id="ping-go">${icon('monitor')}Medir</button></div></div>
+      <div class="card span5"><div class="card-head">${icon('gear')}<div><h3>Herramientas de red</h3><span class="sub">Arreglos rápidos cuando algo falla</span></div></div>
+        <div class="rt-row"><div><b>IP pública</b><span id="net-pub">Tu dirección en internet</span></div><button class="btn sm" id="net-pub-go">Mostrar</button></div>
+        <div class="rt-row"><div><b>Vaciar la caché DNS</b><span>Si una web no carga o ha cambiado de servidor</span></div><button class="btn sm" id="net-flush">Vaciar</button></div>
+        <div class="rt-row"><div><b>Renovar la IP</b><span>Pide una dirección nueva al router</span></div><button class="btn sm" id="net-renew">Renovar</button></div>
+        <div class="rt-row"><div><b>Restablecer la red</b><span>Reinicia Winsock y TCP/IP. Hay que reiniciar el PC después.</span></div><button class="btn sm danger" id="net-reset">Restablecer</button></div></div>
+    </div>`;
+    $('#net-refresh', root).addEventListener('click', () => this.load());
+    $('#sp-go', root).addEventListener('click', e => this.speed(e.currentTarget));
+    $('#ping-go', root).addEventListener('click', e => this.ping(e.currentTarget));
+    $('#ping-host', root).addEventListener('keydown', e => { if (e.key === 'Enter') this.ping($('#ping-go', root)); });
+    $('#net-pub-go', root).addEventListener('click', e => busy(e.currentTarget, async () => { const r = await attempt(() => api.call('net.publicIp')); if (r.ok) setText('#net-pub', r.result.ip, root); }));
+    $('#net-flush', root).addEventListener('click', e => busy(e.currentTarget, () => attempt(() => api.call('net.flushDns'), 'Caché DNS vaciada')));
+    $('#net-renew', root).addEventListener('click', e => busy(e.currentTarget, () => attempt(() => api.call('net.renew'), 'IP renovada')).then(() => this.load()));
+    $('#net-reset', root).addEventListener('click', async e => {
+      const b = e.currentTarget;
+      if (await modal({ title: 'Restablecer la red', body: '<p>Se restablecerán Winsock y la pila TCP/IP. Las IP fijas que hayas puesto a mano se borrarán. Después tendrás que reiniciar el PC.</p>', okLabel: 'Restablecer', danger: true }))
+        busy(b, () => attempt(() => api.call('net.reset'), 'Red restablecida: reinicia el PC'));
+    });
+    $('#net-ad', root).addEventListener('click', async e => {
+      const b = e.target.closest('[data-dns]'); if (!b) return;
+      const sel = $(`select[data-ad="${b.dataset.dns}"]`, root);
+      await busy(b, () => attempt(() => api.call('net.setDns', { adapter: b.dataset.dns, preset: sel.value }), 'DNS cambiados'));
+      this.load();
+    });
+  },
+  show() { this.load(); },
+  async load() {
+    try { this.data = await api.call('net.info'); } catch (e) { $('#net-ad', this.root).innerHTML = `<div class="mini-empty">${esc(e.message)}</div>`; return; }
+    const ads = this.data.adapters || [];
+    $('#net-ad', this.root).innerHTML = ads.length ? ads.map(a => `
+      <div class="net-ad">
+        <div class="net-ad-head">${icon(a.type === 'wifi' ? 'wifi' : 'net')}<div><b>${esc(a.name)}</b><span>${esc(a.desc)}</span></div>
+          <span class="pill">${a.speedMbps >= 1000 ? fmt(a.speedMbps / 1000, a.speedMbps % 1000 ? 1 : 0) + ' Gb/s' : fmt(a.speedMbps) + ' Mb/s'}</span></div>
+        <div class="stats four">
+          <div><span>IP local</span><b>${esc((a.ipv4 || [])[0] || '—')}</b></div>
+          <div><span>Router</span><b>${esc(a.gateway || '—')}</b></div>
+          ${a.ssid ? `<div><span>Wi-Fi</span><b title="${esc(a.ssid)}">${esc(a.ssid)}</b></div><div><span>Señal</span><b>${isNum(a.signal) ? a.signal + ' %' : '—'}</b></div>`
+        : `<div><span>MAC</span><b>${esc(a.mac || '—')}</b></div><div><span>DNS</span><b title="${esc((a.dns || []).join(', '))}">${esc((a.dns || [])[0] || '—')}</b></div>`}
+        </div>
+        <div class="net-dns"><span class="hint">Servidores DNS</span>
+          <select class="field" data-ad="${esc(a.id)}" ${this.data.isAdmin ? '' : 'disabled'}>${DNS.map(([k, l]) => `<option value="${k}" ${a.dnsMode === k ? 'selected' : ''}>${l}</option>`).join('')}${a.dnsMode === 'custom' ? '<option value="custom" selected disabled>Personalizados</option>' : ''}</select>
+          <button class="btn sm" data-dns="${esc(a.id)}" ${this.data.isAdmin ? '' : 'disabled title="Necesita abrir la app como administrador"'}>Aplicar</button></div>
+      </div>`).join('') : `<div class="empty">${icon('net')}<h3>Sin conexión</h3><p>No hay ningún adaptador de red conectado.</p></div>`;
+  },
+  async ping(btn) {
+    const host = $('#ping-host', this.root).value.trim();
+    const r = await busy(btn, () => attempt(() => api.call('net.ping', { host })));
+    if (!r.ok) return;
+    const col = ms => !isNum(ms) ? '' : ms < 30 ? COL.accent : ms < 80 ? COL.warn : COL.hot;
+    $('#ping-body', this.root).innerHTML = r.result.map(p => `<tr><td><b>${esc(p.name)}</b>${p.name !== p.host ? ` <span class="sub">${esc(p.host)}</span>` : ''}</td>
+      <td class="c-num" style="color:${col(p.avg)}">${isNum(p.avg) ? fmt(p.avg, p.avg < 10 ? 1 : 0) + ' ms' : 'Sin respuesta'}</td>
+      <td class="c-num">${isNum(p.min) ? `${fmt(p.min)} / ${fmt(p.max)}` : '—'}</td>
+      <td class="c-num">${isNum(p.jitter) ? fmt(p.jitter, 1) + ' ms' : '—'}</td>
+      <td class="c-num" style="color:${p.loss ? COL.hot : ''}">${fmt(p.loss)} %</td></tr>`).join('');
+  },
+  async speed(btn) {
+    ['#sp-down', '#sp-up', '#sp-ping'].forEach(s => setText(s, '…', this.root));
+    const r = await busy(btn, () => attempt(() => api.call('net.speed')));
+    const v = r.ok ? r.result : {};
+    setText('#sp-down', isNum(v.downMbps) ? fmt(v.downMbps, v.downMbps < 100 ? 1 : 0) : '—', this.root);
+    setText('#sp-up', isNum(v.upMbps) ? fmt(v.upMbps, v.upMbps < 100 ? 1 : 0) : '—', this.root);
+    setText('#sp-ping', isNum(v.ping) ? fmt(v.ping) : '—', this.root);
+  },
+};
+
+/* ══════════════════════ AJUSTES ══════════════════════ */
+const REPO_URL = 'https://github.com/AgustinLib/pcmanager';
+const Settings = {
+  mount(root) {
+    this.root = root;
+    const al = state.settings.alerts || {};
+    root.innerHTML = `
+    <div class="grid">
+      <div class="card span6">
+        <div class="card-head">${icon('gear')}<div><h3>General</h3><span class="sub">Cómo se comporta la app</span></div></div>
+        <div class="rt-row"><div><b>Iniciar con Windows</b><span>Se abre minimizada al encender el PC, ya con permisos de administrador. Así las curvas de los ventiladores funcionan siempre.</span></div><label class="switch"><input type="checkbox" id="st-auto"><span></span></label></div>
+        <div class="rt-row"><div><b>Cerrar a la bandeja</b><span>Al cerrar la ventana, la app sigue junto al reloj para mantener los ventiladores y los avisos.</span></div><label class="switch"><input type="checkbox" id="st-tray"><span></span></label></div>
+        <div class="rt-row"><div><b>Buscar actualizaciones al abrir</b><span>Te avisa cuando hay una versión nueva en GitHub.</span></div><label class="switch"><input type="checkbox" id="st-upd"><span></span></label></div>
+        <div class="rt-row"><div><b>Idioma</b><span>Idioma de la interfaz</span></div><select class="field" id="st-lang">${I18N.langs.map(l => `<option value="${l.code}"${l.code === I18N.code ? ' selected' : ''}>${l.name}</option>`).join('')}</select></div>
+      </div>
+      <div class="card span6">
+        <div class="card-head">${icon('thermo')}<div><h3>Avisos de temperatura</h3><span class="sub">Notificación de Windows si algo se calienta demasiado</span></div>
+          <div class="right"><label class="switch"><input type="checkbox" id="st-al"><span></span></label></div></div>
+        <div id="st-al-sl"></div>
+        <div class="card-foot"><span class="hint">Avisa si se supera el límite durante unos segundos, como mucho una vez cada 10 minutos.</span><button class="btn sm" id="st-al-test">Probar aviso</button></div>
+      </div>
+      <div class="card span12">
+        <div class="card-head">${icon('info')}<div><h3>Acerca de</h3><span class="sub" id="st-ver"></span></div></div>
+        <div class="about">
+          <p class="hint">Centro de Mando es gratuito y de código abierto. Si algo no funciona con tu hardware, abre una incidencia en GitHub indicando la marca y el modelo.</p>
+          <div class="about-btns">
+            <button class="btn" id="st-check">${icon('refresh')}Buscar actualizaciones</button>
+            <button class="btn" id="st-gh">${icon('globe')}Página en GitHub</button>
+            <button class="btn" id="st-data">${icon('folder')}Carpeta de datos</button>
+          </div>
+          <div id="st-upd-res"></div>
+        </div>
+      </div>
+    </div>`;
+    this.cpu = sliderRow({ title: 'Procesador', min: 60, max: 100, step: 1, unit: '°C', value: al.cpu ?? 90, warm: true });
+    this.gpu = sliderRow({ title: 'Tarjeta gráfica', min: 60, max: 100, step: 1, unit: '°C', value: al.gpu ?? 85, warm: true });
+    $('#st-al-sl', root).append(this.cpu.el, this.gpu.el);
+    const saveAl = debounce(() => saveSettings({ alerts: { on: $('#st-al', root).checked, cpu: this.cpu.get(), gpu: this.gpu.get() } }), 400);
+    this.cpu.onInput(saveAl); this.gpu.onInput(saveAl);
+    $('#st-al', root).checked = !!al.on;
+    $('#st-al', root).addEventListener('change', e => { saveAl(); toast(e.target.checked ? 'Avisos activados' : 'Avisos desactivados'); this.syncAl(); });
+    this.syncAl();
+    $('#st-al-test', root).addEventListener('click', () => attempt(() => api.call('app.testAlert')));
+    $('#st-tray', root).checked = !!state.settings.closeToTray;
+    $('#st-tray', root).addEventListener('change', e => saveSettings({ closeToTray: e.target.checked }));
+    $('#st-upd', root).checked = state.settings.updateCheck !== false;
+    $('#st-upd', root).addEventListener('change', e => saveSettings({ updateCheck: e.target.checked }));
+    $('#st-lang', root).addEventListener('change', async e => { await saveSettings({ lang: e.target.value }); I18N.set(e.target.value); });
+    $('#st-auto', root).addEventListener('change', async e => {
+      const i = e.target, on = i.checked; i.disabled = true;
+      const r = await attempt(() => api.call('app.setAutostart', { on }), on ? 'Se abrirá al iniciar Windows' : 'Ya no se abrirá al iniciar Windows');
+      i.checked = r.ok ? !!r.result.enabled : !on; i.disabled = !isAdmin();
+      if (r.ok && on && !state.settings.closeToTray) { $('#st-tray', root).checked = true; saveSettings({ closeToTray: true }); }
+    });
+    $('#st-check', root).addEventListener('click', e => busy(e.currentTarget, () => this.checkUpdate(true)));
+    $('#st-gh', root).addEventListener('click', () => window.open(REPO_URL, '_blank'));
+    $('#st-data', root).addEventListener('click', () => attempt(() => api.call('app.openData')));
+    $('#st-upd-res', root).addEventListener('click', e => { const b = e.target.closest('[data-url]'); if (b) window.open(b.dataset.url, '_blank'); });
+  },
+  syncAl() { const on = $('#st-al', this.root).checked; this.cpu.setDisabled(!on); this.gpu.setDisabled(!on); },
+  async show() {
+    setText('#st-ver', `Versión ${state.init.version}`, this.root);
+    const i = $('#st-auto', this.root);
+    i.disabled = !isAdmin(); i.parentElement.title = isAdmin() ? '' : 'Necesita abrir la app como administrador';
+    try { i.checked = !!(await api.call('app.autostart')).enabled; } catch { /* sin datos */ }
+    if (this.update) this.showUpdate(this.update);
+  },
+  showUpdate(u) {
+    this.update = u;
+    const host = $('#st-upd-res', this.root); if (!host) return;
+    host.innerHTML = u.newer
+      ? `<div class="pending">${icon('info')}<span>Hay una versión nueva: ${esc(u.latest)}</span><button class="btn sm primary" data-url="${esc(u.url)}">Descargar</button></div>`
+      : `<p class="hint">Tienes la última versión.</p>`;
+  },
+  async checkUpdate(manual) {
+    try {
+      const u = await api.call('app.checkUpdate');
+      this.showUpdate(u);
+      const nav = $('#nav [data-page="settings"]');
+      if (u.newer && nav && !$('.badge', nav)) nav.append(h('<i class="badge"></i>'));
+      if (u.newer && !manual) toast(`Hay una versión nueva de Centro de Mando: ${u.latest}. Descárgala desde Ajustes.`, 'info', 9000);
+    } catch (e) { if (manual) toast(e.message, 'err', 6000); }
+  },
+};
+
 /* ══════════════════════ Armazón ══════════════════════ */
-const pages = { panel: Panel, monitor: Monitor, fans: Fans, rgb: Rgb, perif: Perif, oc: Oc, proc: Proc };
+const pages = { panel: Panel, monitor: Monitor, fans: Fans, rgb: Rgb, perif: Perif, oc: Oc, proc: Proc, startup: Startup, clean: Clean, net: Net, win: Win, settings: Settings };
 
 function showPage(id) {
   if (!pages[id] || state.page === id) return;
@@ -2422,7 +2959,7 @@ function onSensors(s) {
 }
 
 function buildShell() {
-  $('#nav').innerHTML = PAGES.map(p => `<button data-page="${p.id}">${icon(p.icon)}<span>${p.label}</span></button>`).join('');
+  $('#nav').innerHTML = PAGES.map(p => (p.group != null ? (p.group ? `<div class="nav-group">${p.group}</div>` : '<div class="nav-sep"></div>') : '') + `<button data-page="${p.id}">${icon(p.icon)}<span>${p.label}</span></button>`).join('');
   $('#nav').addEventListener('click', e => { const b = e.target.closest('[data-page]'); if (b) showPage(b.dataset.page); });
   // Selector de idioma
   const lp = h(`<label class="lang-pick" title="Idioma">${icon('globe')}<select id="lang-sel">${I18N.langs.map(l => `<option value="${l.code}"${l.code === I18N.code ? ' selected' : ''}>${l.name}</option>`).join('')}</select></label>`);
@@ -2481,6 +3018,7 @@ async function boot() {
     buildShell();
     applyInit();
     showPage('panel');
+    if (state.settings.updateCheck !== false) setTimeout(() => Settings.checkUpdate(false), 6000);
     bootEl.classList.add('done');
     setTimeout(() => bootEl.remove(), 400);
   } catch (e) {

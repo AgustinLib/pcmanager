@@ -1,6 +1,6 @@
 # Centro de Mando
 
-Panel de control para PC con Windows: monitoriza el hardware, controla ventiladores e iluminación, configura periféricos compatibles y ayuda a que el equipo vaya más fluido. Todo en una sola ventana y en español.
+Panel de control para PC con Windows: monitoriza el hardware, controla ventiladores e iluminación, configura periféricos compatibles, ajusta Windows a tu gusto y ayuda a que el equipo vaya más fluido. Todo en una sola ventana.
 
 ## Qué hace
 
@@ -13,10 +13,17 @@ Panel de control para PC con Windows: monitoriza el hardware, controla ventilado
 | **Periféricos** | Detecta automáticamente teclados, ratones, mandos y auriculares. Configura los compatibles (ver abajo) y controla el sonido: volumen, silencio y dispositivo de salida y entrada predeterminado. |
 | **Overclock** | GPU NVIDIA (reloj, memoria, límite de potencia y temperatura), planes de energía, y guías de BIOS adaptadas a tu procesador y memoria. Liberar RAM. |
 | **Procesos** | Lista de procesos por consumo y cierre rápido de lo que sobra. |
+| **Arranque** | Programas que se abren al encender el PC: actívalos o desactívalos sin desinstalar nada. |
+| **Limpieza** | Espacio libre de cada disco y borrado de temporales, cachés de sombreadores y navegadores, miniaturas, informes de errores, restos de Windows Update y papelera. |
+| **Red** | Datos de la conexión, cambio de DNS (Cloudflare, Google, Quad9, AdGuard…), ping al router e internet, test de velocidad, IP pública y arreglos rápidos (vaciar DNS, renovar IP, restablecer la red). |
+| **Windows** | Más de 50 funciones de Windows que puedes activar o desactivar: privacidad y anuncios, juegos (modo de juego, grabación en segundo plano, aceleración del ratón, programación de GPU…), escritorio y barra de tareas, sistema y servicios. Botón de ajustes recomendados, punto de restauración, «deshacer mis cambios», reparación de Windows (SFC + DISM) y acceso directo a las herramientas del sistema. |
+| **Ajustes** | Iniciar con Windows, cerrar a la bandeja, avisos de temperatura y búsqueda de actualizaciones. |
 
 Todo se detecta solo al abrir la app: procesador, gráfica, placa, memoria, discos, ventiladores y periféricos.
 
-Disponible en 10 idiomas: español, English, français, Deutsch, italiano, português, català, polski, русский y 简体中文. Se elige en la barra lateral; la primera vez se usa el idioma de Windows.
+Disponible en 10 idiomas: español, English, français, Deutsch, italiano, português, català, polski, русский y 简体中文. Se elige en la barra lateral o en Ajustes; la primera vez se usa el idioma de Windows.
+
+Antes de cambiar cualquier ajuste de Windows, la app guarda cómo estaba en `%APPDATA%\CentroDeMando\windows-backup.json`, así que siempre puedes volver atrás con «Deshacer mis cambios».
 
 ### Periféricos compatibles
 
@@ -58,7 +65,7 @@ dotnet publish CentroDeMando/CentroDeMando.csproj -c Release -o publicar
 
 - El overclock y el control de ventiladores pueden dañar el hardware si se usan mal. Úsalos bajo tu responsabilidad.
 - Proyecto no oficial: no está afiliado a AJAZZ, VXE, ASUS, NVIDIA ni AMD.
-- El tiempo procede de [Open-Meteo](https://open-meteo.com/).
+- El tiempo procede de [Open-Meteo](https://open-meteo.com/); el test de velocidad usa los servidores de Cloudflare y la IP pública se consulta en ipify, solo cuando lo pides.
 
 ## Licencia
 

@@ -51,6 +51,12 @@ public sealed class SettingsStore
         try { File.WriteAllText(_file, _data.ToJsonString(new JsonSerializerOptions { WriteIndented = true })); } catch { }
     }
 
+    /// <summary>Copia de un ajuste concreto (o null si no existe).</summary>
+    public JsonNode? Get(string name)
+    {
+        lock (_lock) return _data[name] is JsonNode n ? JsonNode.Parse(n.ToJsonString()) : null;
+    }
+
     public JsonNode Snapshot()
     {
         lock (_lock) return JsonNode.Parse(_data.ToJsonString())!;

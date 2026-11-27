@@ -16,7 +16,7 @@ public sealed class Bridge : IDisposable
         NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals | JsonNumberHandling.AllowReadingFromString,
     };
 
-    public const string Version = "1.1.0";
+    public const string Version = "1.2.0";
 
     public readonly SettingsStore Settings = new();
     public readonly HardwareService Hardware;
@@ -91,12 +91,81 @@ public sealed class Bridge : IDisposable
             ["oc.setPlan"] = a => { PowerService.SetPlan(a.GetProperty("guid").GetString() ?? ""); return true; },
             ["oc.addUltimatePlan"] = _ => { PowerService.AddUltimate(); return true; },
             ["oc.rebootBios"] = _ => { PowerService.RebootToBios(); return true; },
+
+            ["win.list"] = _ => WindowsTweaks.List(),
+            ["win.set"] = a => WindowsTweaks.Set(Str(a, "id"), Bool(a, "on")),
+            ["win.restore"] = _ => WindowsTweaks.Restore(),
+            ["win.info"] = _ => WindowsTweaks.Info(),
+            ["win.tool"] = a => { WindowsTweaks.OpenTool(Str(a, "id")); return true; },
+            ["win.repair"] = _ => { WindowsTweaks.Repair(); return true; },
+            ["win.restartExplorer"] = _ => { WindowsTweaks.RestartExplorer(); return true; },
+            ["win.restorePoint"] = _ => { WindowsTweaks.CreateRestorePoint(); return true; },
+            ["win.reboot"] = _ => { PowerService.Run("shutdown.exe", "/r /t 5"); return true; },
+
+            ["startup.list"] = _ => new { items = StartupService.List(), isAdmin = SystemInfo.IsAdmin() },
+            ["startup.set"] = a => { StartupService.SetEnabled(Str(a, "id"), Bool(a, "enabled")); return true; },
+            ["startup.reveal"] = a => { StartupService.Reveal(Str(a, "id")); return true; },
+
+            ["clean.scan"] = _ => CleanupService.Scan(),
+            ["clean.run"] = a => CleanupService.Clean(a.GetProperty("ids").EnumerateArray().Select(x => x.GetString() ?? "").ToList()),
+
+            ["net.info"] = _ => NetworkService.Info(),
+            ["net.ping"] = a => NetworkService.Ping(a.ValueKind == JsonValueKind.Object && a.TryGetProperty("host", out var h) ? h.GetString() : null).GetAwaiter().GetResult(),
+            ["net.speed"] = _ => NetworkService.SpeedTest().GetAwaiter().GetResult(),
+            ["net.publicIp"] = _ => new { ip = NetworkService.PublicIp().GetAwaiter().GetResult() },
+            ["net.setDns"] = a => { NetworkService.SetDns(Str(a, "adapter"), Str(a, "preset")); return true; },
+            ["net.flushDns"] = _ => { NetworkService.FlushDns(); return true; },
+            ["net.renew"] = _ => { NetworkService.Renew(); return true; },
+            ["net.reset"] = _ => { NetworkService.ResetStack(); return true; },
+
+            ["app.autostart"] = _ => new { enabled = AppService.AutostartEnabled() },
+            ["app.setAutostart"] = a => { AppService.SetAutostart(Bool(a, "on")); return new { enabled = AppService.AutostartEnabled() }; },
+            ["app.checkUpdate"] = _ => AppService.CheckUpdate(Version).GetAwaiter().GetResult(),
+            ["app.openData"] = _ => { AppService.OpenDataDir(); return true; },
+            ["app.testAlert"] = _ => { Notify?.Invoke(AppService.Texts(Lang).HotTitle, "CPU 95 °C"); return true; },
         };
+        Hardware.Updated += CheckAlerts;
+    }
+
+    static string Str(JsonElement a, string name) =>
+        a.ValueKind == JsonValueKind.Object && a.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : throw new ArgumentException("Falta el dato: " + name);
+    static bool Bool(JsonElement a, string name) =>
+        a.ValueKind == JsonValueKind.Object && a.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+
+    /* ───────── Avisos de temperatura (globo de la bandeja) ───────── */
+    /// <summary>Lo conecta la ventana para mostrar avisos de Windows: (título, texto).</summary>
+    public event Action<string, string>? Notify;
+    public string? Lang => Settings.Get("lang")?.GetValue<string>();
+    readonly Dictionary<string, DateTime> _lastAlert = new();
+    readonly Dictionary<string, int> _hotCount = new();
+
+    void CheckAlerts(Snapshot s)
+    {
+        try
+        {
+            if (Settings.Get("alerts") is not System.Text.Json.Nodes.JsonObject al || al["on"]?.GetValue<bool>() != true) return;
+            double cpuMax = al["cpu"]?.GetValue<double>() ?? 90, gpuMax = al["gpu"]?.GetValue<double>() ?? 85;
+            Check("CPU", s.Cpu.Temp, cpuMax);
+            Check("GPU", s.Gpu.Temp, gpuMax);
+        }
+        catch { }
+
+        void Check(string what, double? t, double max)
+        {
+            // Hacen falta 5 lecturas seguidas por encima del límite (evita avisos por picos) y como mucho un aviso cada 10 min.
+            int n = t is double v && v >= max ? _hotCount.GetValueOrDefault(what) + 1 : 0;
+            _hotCount[what] = n;
+            if (n < 5) return;
+            if (_lastAlert.TryGetValue(what, out var last) && DateTime.UtcNow - last < TimeSpan.FromMinutes(10)) return;
+            _lastAlert[what] = DateTime.UtcNow;
+            Notify?.Invoke(AppService.Texts(Lang).HotTitle, $"{what}: {Math.Round(t!.Value)} °C");
+        }
     }
 
     public void Start()
     {
         Hardware.Start();
+        Task.Run(AppService.FixAutostartPath);
         // Lectura previa del teclado en segundo plano: así la página de Periféricos abre al instante.
         Task.Run(async () =>
         {

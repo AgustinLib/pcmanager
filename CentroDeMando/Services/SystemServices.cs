@@ -192,7 +192,7 @@ public sealed record PowerPlan(string Guid, string Name, bool Active);
 
 public static class PowerService
 {
-    static string Run(string file, string args)
+    internal static string Run(string file, string args)
     {
         var psi = new ProcessStartInfo(file, args)
         {

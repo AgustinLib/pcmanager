@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using CentroDeMando.Services;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -10,11 +11,18 @@ public sealed class MainForm : Form
     readonly Bridge _bridge;
     readonly string? _screenshotPath;
     readonly string? _screenshotPage;
-    bool _ready;
+    readonly NotifyIcon _tray = new();
+    readonly bool _startHidden;
+    bool _ready, _exiting, _hintShown;
+
+    /// <summary>Mensaje que manda una segunda copia de la app para que esta ventana vuelva a mostrarse.</summary>
+    public static readonly uint ShowMsg = RegisterWindowMessage("CentroDeMando.Mostrar");
 
     [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern uint RegisterWindowMessage(string name);
+    [DllImport("user32.dll")] static extern bool ChangeWindowMessageFilterEx(IntPtr hwnd, uint msg, uint action, IntPtr info);
 
-    public MainForm(Bridge bridge, string? screenshotPath = null, string? screenshotPage = null)
+    public MainForm(Bridge bridge, string? screenshotPath = null, string? screenshotPage = null, bool minimized = false)
     {
         _bridge = bridge;
         _screenshotPath = screenshotPath;
@@ -31,15 +39,69 @@ public sealed class MainForm : Form
         _web.DefaultBackgroundColor = BackColor;
         Controls.Add(_web);
 
+        // Icono en la bandeja: abrir / salir, y avisos de temperatura.
+        var tx = AppService.Texts(_bridge.Lang);
+        _tray.Icon = Icon ?? SystemIcons.Application;
+        _tray.Text = "Centro de Mando";
+        _tray.ContextMenuStrip = new ContextMenuStrip();
+        _tray.ContextMenuStrip.Items.Add(tx.Open, null, (_, _) => ShowFromTray());
+        _tray.ContextMenuStrip.Items.Add(tx.Exit, null, (_, _) => { _exiting = true; Close(); });
+        _tray.DoubleClick += (_, _) => ShowFromTray();
+        _tray.BalloonTipClicked += (_, _) => ShowFromTray();
+        _tray.Visible = screenshotPath == null;
+        _bridge.Notify += (title, text) =>
+        {
+            try { BeginInvoke(() => _tray.ShowBalloonTip(8000, title, text, ToolTipIcon.Warning)); } catch { }
+        };
+
+        // Arranque con Windows: empieza minimizada (en la bandeja si está activado «cerrar a la bandeja»).
+        if (minimized)
+        {
+            _startHidden = CloseToTray;
+            WindowState = FormWindowState.Minimized;
+            if (_startHidden) ShowInTaskbar = false;
+        }
+        Shown += (_, _) => { if (_startHidden) Hide(); };
+
         _bridge.Post = json =>
         {
             if (!_ready || IsDisposed) return;
             try { BeginInvoke(() => { try { _web.CoreWebView2?.PostWebMessageAsJson(json); } catch { } }); } catch { }
         };
-        _bridge.RequestClose = () => { try { BeginInvoke(Close); } catch { } };
+        _bridge.RequestClose = () => { try { BeginInvoke(() => { _exiting = true; Close(); }); } catch { } };
 
         Load += async (_, _) => await InitAsync();
-        FormClosed += (_, _) => _bridge.Dispose();
+        FormClosing += OnClosing;
+        FormClosed += (_, _) => { _tray.Visible = false; _tray.Dispose(); _bridge.Dispose(); };
+    }
+
+    bool CloseToTray { get { try { return _bridge.Settings.Get("closeToTray")?.GetValue<bool>() == true; } catch { return false; } } }
+
+    void OnClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (_exiting || e.CloseReason is CloseReason.WindowsShutDown or CloseReason.TaskManagerClosing || !CloseToTray || _screenshotPath != null) return;
+        e.Cancel = true;
+        Hide();
+        if (!_hintShown)
+        {
+            _hintShown = true;
+            _tray.ShowBalloonTip(4000, "Centro de Mando", AppService.Texts(_bridge.Lang).Hidden, ToolTipIcon.Info);
+        }
+    }
+
+    void ShowFromTray()
+    {
+        ShowInTaskbar = true;
+        Show();
+        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        Activate();
+        BringToFront();
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (ShowMsg != 0 && m.Msg == (int)ShowMsg) { ShowFromTray(); return; }
+        base.WndProc(ref m);
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -53,6 +115,8 @@ public sealed class MainForm : Form
             DwmSetWindowAttribute(Handle, 35, ref caption, sizeof(int));
         }
         catch { }
+        // Una copia sin permisos de administrador también puede pedir que esta ventana se muestre.
+        try { if (ShowMsg != 0) ChangeWindowMessageFilterEx(Handle, ShowMsg, 1, IntPtr.Zero); } catch { }
     }
 
     async Task InitAsync()
@@ -77,7 +141,12 @@ public sealed class MainForm : Form
             core.NewWindowRequested += (_, e) =>
             {
                 e.Handled = true;
-                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri) { UseShellExecute = true }); } catch { }
+                try
+                {
+                    if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps)
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true });
+                }
+                catch { }
             };
             core.NavigationCompleted += async (_, _) =>
             {
@@ -90,6 +159,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             MessageBox.Show(this, "No se pudo iniciar la interfaz (WebView2):\n\n" + ex.Message, "Centro de Mando", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            _exiting = true;
             Close();
         }
     }
@@ -112,6 +182,7 @@ public sealed class MainForm : Form
         {
             try { File.WriteAllText(_screenshotPath + ".error.txt", ex.ToString()); } catch { }
         }
+        _exiting = true;
         Close();
     }
 }
